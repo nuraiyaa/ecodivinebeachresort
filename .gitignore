@@ -1,0 +1,48 @@
+# Operating System files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editor & IDE directories
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Logs & error outputs
+*.log
+error_log
+debug_log.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sensitive credentials & environment files
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+admin/includes/db.local.php
+
+# Temporary and backup files
+*.tmp
+*.bak
+*.swp
+
+# Large video media (>50-100MB exceeds GitHub file size limit; host on CDN or cPanel directly)
+*.mp4
+*.mov
+*.avi
+*.wmv
