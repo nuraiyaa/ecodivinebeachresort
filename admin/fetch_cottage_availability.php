@@ -27,8 +27,8 @@ if ($check_out <= $check_in) {
     $check_out = date('Y-m-d', strtotime($check_in . ' +1 day'));
 }
 
-// 1. Fetch all cottages
-$cottagesRes = $conn->query("SELECT id, title, price, weekend_price, is_weekend, status FROM cottages ORDER BY id ASC");
+// 1. Fetch all cottages in serial order
+$cottagesRes = $conn->query("SELECT id, title, price, weekend_price, is_weekend, status FROM cottages ORDER BY FIELD(title, 'অরুনিকা', 'তিলোত্তমা', 'ছায়াবীথি', 'নয়নতারা', 'জলসা', 'রুপকথা', 'কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৩', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'), id ASC");
 $allCottages = [];
 while ($row = $cottagesRes->fetch_assoc()) {
     $isWk = ((int)($row['is_weekend'] ?? 0) === 1);

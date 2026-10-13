@@ -619,7 +619,7 @@ $allCottages = [];
 $cottageActiveCount = 0;
 $cottageWeekendActiveCount = 0;
 
-$cottagesRes = $conn->query("SELECT * FROM cottages ORDER BY id ASC");
+$cottagesRes = $conn->query("SELECT * FROM cottages ORDER BY FIELD(title, 'অরুনিকা', 'তিলোত্তমা', 'ছায়াবীথি', 'নয়নতারা', 'জলসা', 'রুপকথা', 'কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৩', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'), id ASC");
 if ($cottagesRes) {
     while ($row = $cottagesRes->fetch_assoc()) {
         $allCottages[] = $row;

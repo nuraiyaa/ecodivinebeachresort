@@ -172,19 +172,6 @@
             "amenity3" => "Balcony"
           ],
           [
-            "id" => 5,
-            "name" => "জলসা",
-            "img" => "jolsha.jpg",
-            "weekday" => 5500,
-            "weekend" => 6000,
-            "guests" => 4,
-            "view" => "side-sea",
-            "view_label" => "Side Sea View",
-            "tag" => "Side Sea View",
-            "bath" => "Attached Bath",
-            "amenity3" => "Spacious"
-          ],
-          [
             "id" => 3,
             "name" => "ছায়াবীথি",
             "img" => "chayabithi.jpg",
@@ -209,6 +196,19 @@
             "tag" => "Sea View",
             "bath" => "Attached Bath",
             "amenity3" => "Balcony"
+          ],
+          [
+            "id" => 5,
+            "name" => "জলসা",
+            "img" => "jolsha.jpg",
+            "weekday" => 5500,
+            "weekend" => 6000,
+            "guests" => 4,
+            "view" => "side-sea",
+            "view_label" => "Side Sea View",
+            "tag" => "Side Sea View",
+            "bath" => "Attached Bath",
+            "amenity3" => "Spacious"
           ],
           [
             "id" => 6,

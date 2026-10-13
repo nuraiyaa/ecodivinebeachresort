@@ -37,8 +37,8 @@ if (strtotime($check_in) >= strtotime($check_out)) {
 //$log = __DIR__ . '/fetch_debug.txt';
 //file_put_contents($log, "REQ: $check_in | $check_out\n", FILE_APPEND);
 
-// 1) Get list of cottages (we will show all cottages)
-$q = "SELECT id, title, price, weekend_price, is_weekend, img, status FROM cottages ORDER BY id ASC";
+// 1) Get list of cottages (we will show all cottages in serial order)
+$q = "SELECT id, title, price, weekend_price, is_weekend, img, status FROM cottages ORDER BY FIELD(title, 'অরুনিকা', 'তিলোত্তমা', 'ছায়াবীথি', 'নয়নতারা', 'জলসা', 'রুপকথা', 'কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৩', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'), id ASC";
 $res = $conn->query($q);
 if (!$res) {
     echo json_encode(["error" => "Cottage query failed", "details" => $conn->error]);
