@@ -509,15 +509,21 @@ header#mainHeader.scrolled {
 
 @media (max-width: 991.98px) {
   .desktop-nav {
-    display: none; /* Hide desktop nav menu */
+    display: none !important; /* Hide desktop nav menu */
   }
 
   .nav-contact-btn {
-    display: none; /* Hide phone button in header bar on tablets/mobile */
+    display: none !important; /* Hide phone button in header bar on tablets/mobile */
   }
 
   .menu-toggle-btn {
-    display: flex; /* Show animated hamburger */
+    display: flex !important; /* Show animated hamburger */
+    flex-shrink: 0 !important;
+  }
+
+  .header-actions {
+    gap: 10px;
+    flex-shrink: 0;
   }
 
   .nav-book-btn {
@@ -531,30 +537,129 @@ header#mainHeader.scrolled {
 }
 
 @media (max-width: 575.98px) {
-  .nav-container {
-    width: 95%;
+  header#mainHeader {
+    padding: 8px 0;
   }
 
-  .brand-name {
-    font-size: 0.95rem;
+  .nav-container {
+    width: 100%;
+    padding: 0 12px;
+    max-width: 100%;
+    box-sizing: border-box;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .brand-logo {
+    gap: 8px;
+    min-width: 0;
+    max-width: calc(100% - 150px);
+    flex-shrink: 1;
   }
 
   .brand-logo-img {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    flex-shrink: 0;
+  }
+
+  .brand-text {
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-name {
+    font-size: clamp(0.78rem, 3.4vw, 0.92rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
   }
 
   .brand-tagline {
-    font-size: 0.62rem;
+    font-size: 0.58rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.5px;
+  }
+
+  .header-actions {
+    gap: 6px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    margin-left: auto;
   }
 
   .nav-book-btn {
-    padding: 6px 12px;
-    font-size: 0.78rem;
+    padding: 6px 10px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .nav-book-btn i {
     display: none;
+  }
+
+  .menu-toggle-btn {
+    display: flex !important;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    flex-shrink: 0 !important;
+    margin: 0;
+  }
+
+  .menu-toggle-btn .bar {
+    width: 20px;
+    height: 2px;
+  }
+
+  .menu-toggle-btn .bar:not(:last-child) {
+    margin-bottom: 4px;
+  }
+}
+
+@media (max-width: 360px) {
+  .nav-container {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .brand-logo {
+    max-width: calc(100% - 135px);
+    gap: 6px;
+  }
+
+  .brand-logo-img {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+  }
+
+  .brand-name {
+    font-size: 0.76rem;
+  }
+
+  .nav-book-btn {
+    padding: 5px 8px;
+    font-size: 0.70rem;
+  }
+
+  .menu-toggle-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+  }
+
+  .menu-toggle-btn .bar {
+    width: 18px;
   }
 }
 /* =================== HERO SECTION CSS =================== */
