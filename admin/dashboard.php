@@ -6130,7 +6130,15 @@ function handleSingleSmsSubmit(e) {
     method: 'POST',
     body: formData
   })
-  .then(res => res.json())
+  .then(res => {
+    return res.text().then(text => {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        throw new Error(text || 'Server returned an invalid response (Status ' + res.status + ')');
+      }
+    });
+  })
   .then(data => {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Send SMS';
@@ -6150,7 +6158,7 @@ function handleSingleSmsSubmit(e) {
   .catch(err => {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-solid fa-paper-plane me-1"></i> Send SMS';
-    alertEl.textContent = 'Network error occurred while sending SMS.';
+    alertEl.textContent = (err && err.message) ? err.message : 'Network error occurred while sending SMS.';
     alertEl.classList.remove('d-none');
   });
 }
@@ -6175,7 +6183,15 @@ function handleBroadcastSmsSubmit(e) {
     method: 'POST',
     body: formData
   })
-  .then(res => res.json())
+  .then(res => {
+    return res.text().then(text => {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        throw new Error(text || 'Server returned an invalid response (Status ' + res.status + ')');
+      }
+    });
+  })
   .then(data => {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-solid fa-bullhorn me-1"></i> Send Broadcast SMS';
@@ -6195,7 +6211,7 @@ function handleBroadcastSmsSubmit(e) {
   .catch(err => {
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-solid fa-bullhorn me-1"></i> Send Broadcast SMS';
-    alertEl.textContent = 'Network error occurred while broadcasting SMS.';
+    alertEl.textContent = (err && err.message) ? err.message : 'Network error occurred while broadcasting SMS.';
     alertEl.classList.remove('d-none');
   });
 }

@@ -16,26 +16,7 @@ if (!isset($_SESSION['admin_id'])) {
 }
 
 require_once __DIR__ . '/includes/db.php';
-
-// Helper function to dispatch SMS (can plug into Greenweb / Twilio / mBulkSMS)
-function dispatchGatewaySms($phone, $message) {
-    // Normalization: clean whitespace and hyphens
-    $clean_phone = preg_replace('/[^0-9+]/', '', $phone);
-    if (strpos($clean_phone, '01') === 0 && strlen($clean_phone) === 11) {
-        $clean_phone = '+88' . $clean_phone;
-    }
-    
-    // Future Gateway Integration Hook:
-    // If an external SMS gateway key/endpoint is configured, make the cURL call here.
-    // e.g.:
-    // $apiKey = defined('SMS_API_KEY') ? SMS_API_KEY : '';
-    // if (!empty($apiKey)) { ... curl ... }
-
-    return [
-        'status' => 'sent',
-        'gateway_response' => 'Message successfully queued & dispatched via Eco Divine SMS Gateway to ' . $clean_phone
-    ];
-}
+require_once __DIR__ . '/includes/integrations.php';
 
 $type = trim($_POST['type'] ?? 'single'); // 'single' or 'broadcast'
 $message = trim($_POST['message'] ?? '');
@@ -82,8 +63,6 @@ if ($type === 'broadcast') {
     }
 
     $sent_count = 0;
-    $stmt = $conn->prepare("INSERT INTO sms_logs (recipient_name, recipient_phone, message, sms_type, sent_by, status, gateway_response, created_at) VALUES (?, ?, ?, 'broadcast', ?, ?, ?, NOW())");
-
     foreach ($recipients as $rec) {
         $rec_name = trim($rec['name'] ?? 'Guest');
         $rec_phone = trim($rec['phone'] ?? '');
@@ -91,15 +70,11 @@ if ($type === 'broadcast') {
 
         // Personalize message if {Name} placeholder is used
         $personalized_msg = str_replace('{Name}', $rec_name, $message);
-        $gw = dispatchGatewaySms($rec_phone, $personalized_msg);
-        $gw_status = $gw['status'];
-        $gw_resp = $gw['gateway_response'];
-
-        $stmt->bind_param("sssis", $rec_name, $rec_phone, $personalized_msg, $admin_id, $gw_status, $gw_resp);
-        $stmt->execute();
-        $sent_count++;
+        $res = sendResortSms($rec_phone, $personalized_msg, $rec_name, 'broadcast', $admin_id);
+        if ($res['success']) {
+            $sent_count++;
+        }
     }
-    $stmt->close();
 
     echo json_encode([
         'success' => true,
@@ -121,21 +96,23 @@ if ($type === 'broadcast') {
 
     // Personalize message if {Name} placeholder is used
     $personalized_msg = str_replace('{Name}', $recipient_name, $message);
-    $gw = dispatchGatewaySms($recipient_phone, $personalized_msg);
-    $gw_status = $gw['status'];
-    $gw_resp = $gw['gateway_response'];
+    $res = sendResortSms($recipient_phone, $personalized_msg, $recipient_name, 'single', $admin_id);
 
-    $stmt = $conn->prepare("INSERT INTO sms_logs (recipient_name, recipient_phone, message, sms_type, sent_by, status, gateway_response, created_at) VALUES (?, ?, ?, 'single', ?, ?, ?, NOW())");
-    $stmt->bind_param("sssis", $recipient_name, $recipient_phone, $personalized_msg, $admin_id, $gw_status, $gw_resp);
-    $stmt->execute();
-    $stmt->close();
-
-    echo json_encode([
-        'success' => true,
-        'type' => 'single',
-        'recipient_name' => $recipient_name,
-        'recipient_phone' => $recipient_phone,
-        'message' => "SMS successfully dispatched to {$recipient_name} ({$recipient_phone})!"
-    ]);
+    if ($res['success']) {
+        echo json_encode([
+            'success' => true,
+            'type' => 'single',
+            'recipient_name' => $recipient_name,
+            'recipient_phone' => $recipient_phone,
+            'status' => $res['status'],
+            'response' => $res['response'],
+            'message' => "SMS successfully dispatched to {$recipient_name} ({$recipient_phone})!"
+        ]);
+    } else {
+        echo json_encode([
+            'success' => false,
+            'error' => !empty($res['response']) ? $res['response'] : 'Failed to send SMS.'
+        ]);
+    }
     exit;
 }
