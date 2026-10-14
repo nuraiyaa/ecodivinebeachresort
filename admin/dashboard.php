@@ -118,6 +118,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_create_booking
                     $stmt_cust->bind_param("ssssssisddddsss", $cust_name, $cust_email, $cust_phone, $all_cottages_str, $check_in, $check_out, $guest_count, $b_code, $total_amount, $advance_amount, $discount_amount, $due_amount, $payment_method, $notes, $payment_status);
                     $stmt_cust->execute();
                     $stmt_cust->close();
+
+                    // Automated Notifications (SMS & Email)
+                    $intSettings = getSystemSettings();
+                    $hotline = $intSettings['sms_hotline'] ?? '01817838383';
+
+                    // Dispatch SMS if enabled
+                    if (($intSettings['sms_on_booking_confirm'] ?? '1') === '1' && !empty($cust_phone)) {
+                        $smsMsg = "Eco Divine Resort: Booking Confirmed! Ref: {$b_code}. Dear {$cust_name}, cottage {$all_cottages_str} is reserved for {$check_in} to {$check_out}. Due: ৳" . number_format($due_amount) . ". Advance Booking Money is non-refundable. Hotline: " . $hotline;
+                        sendResortSms($cust_phone, $smsMsg, $cust_name, 'single', $admin_id);
+                    }
+
+                    // Dispatch Email if enabled
+                    if (($intSettings['email_on_booking_confirm'] ?? '1') === '1' && !empty($cust_email) && filter_var($cust_email, FILTER_VALIDATE_EMAIL)) {
+                        $invUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . dirname($_SERVER['PHP_SELF'] ?? '') . "/invoice.php?id=" . $new_booking_id;
+                        $htmlBody = buildBookingConfirmationEmailHtml([
+                            'guest_name'       => $cust_name,
+                            'booking_id'       => $b_code,
+                            'cottage_name'     => $all_cottages_str,
+                            'check_in'         => $check_in,
+                            'check_out'        => $check_out,
+                            'total_bill'       => $total_amount,
+                            'collected_amount' => $advance_amount,
+                            'due_amount'       => $due_amount,
+                            'invoice_url'      => $invUrl
+                        ]);
+                        sendResortEmail($cust_email, $cust_name, "Booking Confirmed #{$b_code} - Eco Divine Beach Resort", $htmlBody, '', 'booking_confirm', $admin_id);
+                    }
                 }
 
                 header("Location: dashboard.php?msg=booking_created#view-bookings");
