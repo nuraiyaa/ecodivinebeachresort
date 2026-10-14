@@ -122,10 +122,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_create_booking
                     // Automated Notifications (SMS & Email)
                     $intSettings = getSystemSettings();
                     $hotline = $intSettings['sms_hotline'] ?? '01817838383';
+                    $cottageSmsName = translateCottageForSms($all_cottages_str);
 
                     // Dispatch SMS if enabled
-                    if (($intSettings['sms_on_booking_confirm'] ?? '1') === '1' && !empty($cust_phone)) {
-                        $smsMsg = "Eco Divine Resort: Booking Confirmed! Ref: {$b_code}. Dear {$cust_name}, cottage {$all_cottages_str} is reserved for {$check_in} to {$check_out}. Due: ৳" . number_format($due_amount) . ". Advance Booking Money is non-refundable. Hotline: " . $hotline;
+                    if (($intSettings['sms_enabled'] ?? '1') === '1' && ($intSettings['sms_on_booking_confirm'] ?? '1') !== '0' && !empty($cust_phone)) {
+                        $smsMsg = "Eco Divine Resort: Booking Confirmed! Ref: {$b_code}. Dear {$cust_name}, cottage {$cottageSmsName} is reserved for {$check_in} to {$check_out}. Due: Tk " . number_format($due_amount) . ". Advance Booking Money is non-refundable. Hotline: " . $hotline;
                         sendResortSms($cust_phone, $smsMsg, $cust_name, 'single', $admin_id);
                     }
 
@@ -223,10 +224,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_confirm_bookin
             // Automated Notifications (SMS & Email)
             $intSettings = getSystemSettings();
             $hotline = $intSettings['sms_hotline'] ?? '01817838383';
+            $cottageSmsName = translateCottageForSms($c_cottage);
 
             // Dispatch SMS if enabled
-            if (($intSettings['sms_on_booking_confirm'] ?? '1') === '1' && !empty($curr_b['customer_phone'])) {
-                $smsMsg = "Eco Divine Resort: Booking Confirmed! Ref: {$b_code}. Dear {$curr_b['customer_name']}, cottage {$c_cottage} is reserved for {$curr_b['check_in']} to {$curr_b['check_out']}. Due: ৳" . number_format($due_amount) . ". Advance Booking Money is non-refundable. Hotline: " . $hotline;
+            if (($intSettings['sms_enabled'] ?? '1') === '1' && ($intSettings['sms_on_booking_confirm'] ?? '1') !== '0' && !empty($curr_b['customer_phone'])) {
+                $smsMsg = "Eco Divine Resort: Booking Confirmed! Ref: {$b_code}. Dear {$curr_b['customer_name']}, cottage {$cottageSmsName} is reserved for {$curr_b['check_in']} to {$curr_b['check_out']}. Due: Tk " . number_format($due_amount) . ". Advance Booking Money is non-refundable. Hotline: " . $hotline;
                 sendResortSms($curr_b['customer_phone'], $smsMsg, $curr_b['customer_name'], 'single', $admin_id);
             }
 

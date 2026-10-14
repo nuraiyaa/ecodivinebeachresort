@@ -206,6 +206,28 @@ class EcoSMTPMailer {
 }
 
 /**
+ * Helper to transliterate Bengali cottage titles into clean English for standard SMS delivery
+ */
+function translateCottageForSms($name) {
+    if (empty($name)) return 'Resort Cottage';
+    $map = [
+        'অরুনিকা'     => 'Orunika',
+        'তিলোত্তমা'    => 'Tilottoma',
+        'ছায়াবীথি'    => 'Chayabithi',
+        'নয়নতারা'     => 'Noyontara',
+        'জলসা'       => 'Jolsha',
+        'রুপকথা'      => 'Rupkotha',
+        'কোরাল-০১'    => 'Coral-01',
+        'কোরাল-০২'    => 'Coral-02',
+        'লবস্টার-০৩'   => 'Lobster-03',
+        'লবস্টার-০৪'   => 'Lobster-04',
+        'রূপচাঁদা-০৫'  => 'Rupchanda-05',
+        'রূপচাঁদা-০৬'  => 'Rupchanda-06',
+    ];
+    return strtr($name, $map);
+}
+
+/**
  * Dispatch Resort SMS via configured Gateway
  */
 function sendResortSms($phone, $message, $recipientName = 'Guest', $smsType = 'single', $adminId = null) {
@@ -260,9 +282,10 @@ function sendResortSms($phone, $message, $recipientName = 'Guest', $smsType = 's
             curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
         } elseif ($provider === 'bulksmsbd') {
             $endpoint = !empty($apiUrl) ? $apiUrl : 'http://bulksmsbd.net/api/smsapi';
+            $isUnicode = (bool)preg_match('/[^\x20-\x7E\t\r\n]/', $message);
             $params = [
                 'api_key'  => $apiKey,
-                'type'     => 'text',
+                'type'     => $isUnicode ? 'unicode' : 'text',
                 'number'   => $bangladeshPhone,
                 'senderid' => $senderId,
                 'message'  => $message
