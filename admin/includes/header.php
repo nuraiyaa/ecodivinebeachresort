@@ -58,6 +58,9 @@ if (isset($conn) && $conn instanceof mysqli) {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Font Awesome 6.5 -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <!-- Flatpickr CSS for Custom Admin Datepicker -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/airbnb.css">
 
   <style>
     :root {
@@ -94,6 +97,92 @@ if (isset($conn) && $conn instanceof mysqli) {
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
+    }
+
+    /* ========================================================
+       CUSTOM FLATPICKR CALENDAR THEMING (ECO DIVINE EMERALD)
+       ======================================================== */
+    .flatpickr-calendar {
+      border-radius: 16px !important;
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16) !important;
+      border: 1px solid #e2e8f0 !important;
+      font-family: inherit !important;
+      overflow: hidden;
+      z-index: 99999 !important;
+    }
+    .flatpickr-calendar .flatpickr-months {
+      background: #059669 !important;
+      color: #ffffff !important;
+      border-radius: 16px 16px 0 0 !important;
+      padding: 6px 0 !important;
+    }
+    .flatpickr-calendar .flatpickr-month {
+      color: #ffffff !important;
+      fill: #ffffff !important;
+    }
+    .flatpickr-calendar .flatpickr-current-month {
+      color: #ffffff !important;
+      font-weight: 700 !important;
+    }
+    .flatpickr-calendar .flatpickr-current-month .numInputWrapper span.arrowUp:after {
+      border-bottom-color: #ffffff !important;
+    }
+    .flatpickr-calendar .flatpickr-current-month .numInputWrapper span.arrowDown:after {
+      border-top-color: #ffffff !important;
+    }
+    .flatpickr-calendar .flatpickr-prev-month, 
+    .flatpickr-calendar .flatpickr-next-month {
+      color: #ffffff !important;
+      fill: #ffffff !important;
+    }
+    .flatpickr-calendar .flatpickr-prev-month:hover, 
+    .flatpickr-calendar .flatpickr-next-month:hover {
+      color: #d1fae5 !important;
+    }
+    span.flatpickr-weekday {
+      color: #475569 !important;
+      font-weight: 700 !important;
+      font-size: 0.78rem !important;
+    }
+    .flatpickr-day {
+      border-radius: 10px !important;
+      font-weight: 600 !important;
+      font-size: 0.88rem !important;
+    }
+    .flatpickr-day.selected, 
+    .flatpickr-day.startRange, 
+    .flatpickr-day.endRange {
+      background: #059669 !important;
+      border-color: #059669 !important;
+      color: #ffffff !important;
+      font-weight: 700 !important;
+      box-shadow: 0 4px 10px rgba(5, 150, 105, 0.35) !important;
+    }
+    .flatpickr-day.inRange {
+      background: #ecfdf5 !important;
+      border-color: #d1fae5 !important;
+      color: #047857 !important;
+    }
+    .flatpickr-day.today {
+      border-color: #059669 !important;
+      color: #059669 !important;
+    }
+    .flatpickr-day.today.selected {
+      color: #ffffff !important;
+    }
+    .flatpickr-day:hover {
+      background: #ecfdf5 !important;
+      color: #047857 !important;
+      border-color: #a7f3d0 !important;
+    }
+    .custom-admin-datepicker {
+      background-color: #ffffff !important;
+      cursor: pointer !important;
+      transition: all 0.2s ease !important;
+    }
+    .custom-admin-datepicker:focus {
+      border-color: #059669 !important;
+      box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15) !important;
     }
 
     /* ========================================================

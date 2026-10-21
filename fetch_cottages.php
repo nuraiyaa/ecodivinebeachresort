@@ -52,20 +52,20 @@ while ($r = $res->fetch_assoc()) {
         "title"           => $r['title'],
         "price"           => (int)$r['price'],
         "weekend_price"   => (int)($r['weekend_price'] > 0 ? $r['weekend_price'] : $r['price']),
-        "is_weekend"      => $stayPricing['has_weekend'],
-        "is_all_weekend"  => $stayPricing['is_all_weekend'],
-        "has_weekend"     => $stayPricing['has_weekend'],
-        "has_weekday"     => $stayPricing['has_weekday'],
-        "total_nights"    => $stayPricing['total_nights'],
-        "weekday_nights"  => $stayPricing['weekday_nights'],
-        "weekend_nights"  => $stayPricing['weekend_nights'],
-        "total_price"     => (int)$stayPricing['total_price'],
-        "avg_price"       => (int)$stayPricing['avg_price'],
-        "effective_price" => (int)$stayPricing['total_price'],
-        "display_price"   => (int)$stayPricing['total_price'],
-        "breakdown_text"  => $stayPricing['breakdown_text'],
-        "rate_type_badge" => $stayPricing['rate_type_badge'],
-        "night_details"   => $stayPricing['night_details'],
+        "is_weekend"      => !empty($stayPricing['is_weekend']),
+        "is_all_weekend"  => !empty($stayPricing['is_all_weekend']),
+        "has_weekend"     => !empty($stayPricing['has_weekend']),
+        "has_weekday"     => !empty($stayPricing['has_weekday']),
+        "total_nights"    => (int)($stayPricing['total_nights'] ?? 1),
+        "weekday_nights"  => (int)($stayPricing['weekday_nights'] ?? 0),
+        "weekend_nights"  => (int)($stayPricing['weekend_nights'] ?? 0),
+        "total_price"     => (int)($stayPricing['total_price'] ?? $r['price']),
+        "avg_price"       => (int)($stayPricing['avg_price'] ?? $r['price']),
+        "effective_price" => (int)($stayPricing['total_price'] ?? $r['price']),
+        "display_price"   => (int)($stayPricing['total_price'] ?? $r['price']),
+        "breakdown_text"  => $stayPricing['breakdown_text'] ?? '',
+        "rate_type_badge" => $stayPricing['rate_type_badge'] ?? 'Weekday Rate',
+        "night_details"   => $stayPricing['night_details'] ?? [],
         "img"             => $img,
         "status"          => $r['status'] ?? 'active',
         "availability"    => $defaultAvailability
@@ -104,5 +104,8 @@ foreach ($bookedIds as $bid) {
 // 4) Return as indexed array (not associative by id)
 $output = array_values($cottages);
 
+if (ob_get_length()) {
+    ob_clean();
+}
 echo json_encode($output, JSON_UNESCAPED_UNICODE);
 exit;

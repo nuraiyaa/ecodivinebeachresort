@@ -1113,16 +1113,16 @@ require __DIR__ . '/includes/header.php';
               <span class="input-group-text bg-light text-muted small fw-semibold" style="font-size: 0.78rem;">
                 <i class="fa-solid fa-calendar-day text-secondary me-1"></i> Specific Date
               </span>
-              <input type="date" class="form-control form-control-sm" id="dashSpecificDateInput" onchange="applyDashboardSpecificDate(this.value)" title="Choose a specific date">
+              <input type="text" class="form-control form-control-sm custom-admin-datepicker" id="dashSpecificDateInput" placeholder="Select Date" title="Choose a specific date" style="min-width: 130px;">
             </div>
 
             <span class="text-muted small px-1 fw-bold">OR</span>
 
             <!-- Range Pickers -->
             <div class="d-flex align-items-center gap-1">
-              <input type="date" class="form-control form-control-sm" id="dashStartDateInput" style="width: 135px;" title="Range Start Date" onchange="onDashboardRangeInputChange()">
+              <input type="text" class="form-control form-control-sm custom-admin-datepicker" id="dashStartDateInput" style="width: 135px;" placeholder="Start Date" title="Range Start Date">
               <span class="text-muted small">&rarr;</span>
-              <input type="date" class="form-control form-control-sm" id="dashEndDateInput" style="width: 135px;" title="Range End Date" onchange="onDashboardRangeInputChange()">
+              <input type="text" class="form-control form-control-sm custom-admin-datepicker" id="dashEndDateInput" style="width: 135px;" placeholder="End Date" title="Range End Date">
               <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-semibold" id="btnApplyRange" onclick="applyDashboardDateRange()">
                 <i class="fa-solid fa-filter me-1"></i> Apply
               </button>
@@ -1320,12 +1320,18 @@ require __DIR__ . '/includes/header.php';
 
           <div class="col-12 col-sm-6 col-md-3">
             <label class="form-label text-muted fw-bold small mb-1" style="font-size:0.75rem;">DATE / START DATE <span class="text-danger">*</span></label>
-            <input type="date" name="weekend_date" class="form-control form-control-sm fw-semibold" required min="<?= date('Y-m-d') ?>">
+            <div class="position-relative">
+              <input type="text" name="weekend_date" id="weekendStartDateInput" class="form-control form-control-sm fw-semibold custom-admin-datepicker" required placeholder="Select Date" min="<?= date('Y-m-d') ?>">
+              <i class="fa-regular fa-calendar-check position-absolute text-warning" style="right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 0.85rem;"></i>
+            </div>
           </div>
 
           <div class="col-12 col-sm-6 col-md-3">
             <label class="form-label text-muted fw-bold small mb-1" style="font-size:0.75rem;">END DATE <small class="text-muted fw-normal">(Optional range)</small></label>
-            <input type="date" name="weekend_date_end" class="form-control form-control-sm fw-semibold" placeholder="Optional end date">
+            <div class="position-relative">
+              <input type="text" name="weekend_date_end" id="weekendEndDateInput" class="form-control form-control-sm fw-semibold custom-admin-datepicker" placeholder="Optional end date">
+              <i class="fa-regular fa-calendar-plus position-absolute text-secondary" style="right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 0.85rem;"></i>
+            </div>
           </div>
 
           <div class="col-12 col-md-4">
@@ -3615,11 +3621,17 @@ require __DIR__ . '/includes/header.php';
               <div class="row g-2 mb-3">
                 <div class="col-6">
                   <label class="form-label text-muted fw-bold small mb-1" style="font-size:0.75rem;">CHECK-IN DATE <span class="text-danger">*</span></label>
-                  <input type="date" name="check_in" id="modalCheckIn" class="form-control form-control-sm fw-semibold" value="<?= date('Y-m-d') ?>" required onchange="onDatesChanged()">
+                  <div class="position-relative">
+                    <input type="text" name="check_in" id="modalCheckIn" class="form-control form-control-sm fw-semibold custom-admin-datepicker" value="<?= date('Y-m-d') ?>" placeholder="Select Arrival Date" required>
+                    <i class="fa-regular fa-calendar-check position-absolute text-success" style="right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 0.85rem;"></i>
+                  </div>
                 </div>
                 <div class="col-6">
                   <label class="form-label text-muted fw-bold small mb-1" style="font-size:0.75rem;">CHECK-OUT DATE <span class="text-danger">*</span></label>
-                  <input type="date" name="check_out" id="modalCheckOut" class="form-control form-control-sm fw-semibold" value="<?= date('Y-m-d', strtotime('+1 day')) ?>" required onchange="onDatesChanged()">
+                  <div class="position-relative">
+                    <input type="text" name="check_out" id="modalCheckOut" class="form-control form-control-sm fw-semibold custom-admin-datepicker" value="<?= date('Y-m-d', strtotime('+1 day')) ?>" placeholder="Select Departure Date" required>
+                    <i class="fa-regular fa-calendar-xmark position-absolute text-danger" style="right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 0.85rem;"></i>
+                  </div>
                 </div>
               </div>
 
@@ -5098,7 +5110,11 @@ function onDatesChanged() {
   const cinInput = document.getElementById('modalCheckIn');
   const coutInput = document.getElementById('modalCheckOut');
   if (cinInput && coutInput && cinInput.value) {
-    coutInput.min = cinInput.value;
+    if (coutInput._flatpickr) {
+      coutInput._flatpickr.set('minDate', cinInput.value);
+    } else {
+      coutInput.min = cinInput.value;
+    }
     if (coutInput.value && coutInput.value <= cinInput.value) {
       const parts = cinInput.value.split('-');
       const nextDay = new Date(parts[0], parts[1] - 1, parts[2]);
@@ -5106,7 +5122,12 @@ function onDatesChanged() {
       const y = nextDay.getFullYear();
       const m = String(nextDay.getMonth() + 1).padStart(2, '0');
       const d = String(nextDay.getDate()).padStart(2, '0');
-      coutInput.value = `${y}-${m}-${d}`;
+      const nextStr = `${y}-${m}-${d}`;
+      if (coutInput._flatpickr) {
+        coutInput._flatpickr.setDate(nextStr, false);
+      } else {
+        coutInput.value = nextStr;
+      }
     }
   }
   refreshCottageAvailability();
@@ -5344,12 +5365,125 @@ function validateBookingForm(event) {
   return true;
 }
 
-// Auto-check availability when newBookingModal is shown
+// Auto-check availability when newBookingModal is shown & initialize custom admin datepickers
 document.addEventListener('DOMContentLoaded', function() {
   const newBookingModalEl = document.getElementById('newBookingModal');
   if (newBookingModalEl) {
     newBookingModalEl.addEventListener('show.bs.modal', function() {
       refreshCottageAvailability();
+    });
+  }
+
+  // 1. Initialize Custom Datepickers for Make Booking Modal
+  const modalCinEl = document.getElementById('modalCheckIn');
+  const modalCoutEl = document.getElementById('modalCheckOut');
+  let fpModalIn = null;
+  let fpModalOut = null;
+
+  if (modalCinEl && modalCoutEl && typeof flatpickr !== 'undefined') {
+    fpModalOut = flatpickr(modalCoutEl, {
+      altInput: true,
+      altFormat: "D, d M Y",
+      dateFormat: "Y-m-d",
+      minDate: new Date().fp_incr(1),
+      disableMobile: true,
+      defaultDate: modalCoutEl.value || new Date().fp_incr(1),
+      onChange: function() {
+        refreshCottageAvailability();
+      }
+    });
+
+    fpModalIn = flatpickr(modalCinEl, {
+      altInput: true,
+      altFormat: "D, d M Y",
+      dateFormat: "Y-m-d",
+      minDate: "today",
+      disableMobile: true,
+      defaultDate: modalCinEl.value || "today",
+      onChange: function(selectedDates) {
+        if (selectedDates.length && fpModalOut) {
+          const nextDay = new Date(selectedDates[0].getTime() + 24 * 60 * 60 * 1000);
+          fpModalOut.set('minDate', nextDay);
+          const currentOut = modalCoutEl.value;
+          if (!currentOut || new Date(currentOut) <= selectedDates[0]) {
+            fpModalOut.setDate(nextDay, true);
+          }
+        }
+        refreshCottageAvailability();
+      }
+    });
+  }
+
+  // 2. Initialize Custom Datepickers for Custom Weekend Dates in Manage Cottages
+  const wkInEl = document.getElementById('weekendStartDateInput');
+  const wkOutEl = document.getElementById('weekendEndDateInput');
+  if (wkInEl && typeof flatpickr !== 'undefined') {
+    let fpWkEnd = null;
+    if (wkOutEl) {
+      fpWkEnd = flatpickr(wkOutEl, {
+        altInput: true,
+        altFormat: "D, d M Y",
+        dateFormat: "Y-m-d",
+        minDate: "today",
+        disableMobile: true
+      });
+    }
+
+    flatpickr(wkInEl, {
+      altInput: true,
+      altFormat: "D, d M Y",
+      dateFormat: "Y-m-d",
+      minDate: "today",
+      disableMobile: true,
+      onChange: function(selectedDates) {
+        if (selectedDates.length && fpWkEnd) {
+          fpWkEnd.set('minDate', selectedDates[0]);
+        }
+      }
+    });
+  }
+
+  // 3. Initialize Custom Datepickers for Dashboard Stats Filtering
+  const dashSpecEl = document.getElementById('dashSpecificDateInput');
+  const dashStartEl = document.getElementById('dashStartDateInput');
+  const dashEndEl = document.getElementById('dashEndDateInput');
+
+  if (dashSpecEl && typeof flatpickr !== 'undefined') {
+    flatpickr(dashSpecEl, {
+      altInput: true,
+      altFormat: "d M, Y",
+      dateFormat: "Y-m-d",
+      disableMobile: true,
+      onChange: function(dates, dateStr) {
+        if (dateStr) {
+          applyDashboardSpecificDate(dateStr);
+        }
+      }
+    });
+  }
+
+  if (dashStartEl && dashEndEl && typeof flatpickr !== 'undefined') {
+    const fpDashEnd = flatpickr(dashEndEl, {
+      altInput: true,
+      altFormat: "d M, Y",
+      dateFormat: "Y-m-d",
+      disableMobile: true,
+      onChange: function() {
+        onDashboardRangeInputChange();
+      }
+    });
+
+    flatpickr(dashStartEl, {
+      altInput: true,
+      altFormat: "d M, Y",
+      dateFormat: "Y-m-d",
+      disableMobile: true,
+      onChange: function(dates) {
+        if (dates.length && fpDashEnd) {
+          fpDashEnd.set('minDate', dates[0]);
+        }
+        onDashboardRangeInputChange();
+      }
     });
   }
 });
@@ -6770,11 +6904,11 @@ function switchDashboardPreset(preset) {
 
   // Clear specific date & range inputs
   const spInput = document.getElementById('dashSpecificDateInput');
-  if (spInput) spInput.value = '';
+  if (spInput) { if (spInput._flatpickr) spInput._flatpickr.clear(); else spInput.value = ''; }
   const sInput = document.getElementById('dashStartDateInput');
-  if (sInput) sInput.value = '';
+  if (sInput) { if (sInput._flatpickr) sInput._flatpickr.clear(); else sInput.value = ''; }
   const eInput = document.getElementById('dashEndDateInput');
-  if (eInput) eInput.value = '';
+  if (eInput) { if (eInput._flatpickr) eInput._flatpickr.clear(); else eInput.value = ''; }
 
   // Update preset buttons visual active state
   document.querySelectorAll('.dash-preset-btn').forEach(btn => {
@@ -6809,9 +6943,9 @@ function applyDashboardSpecificDate(dateVal) {
 
   // Clear range inputs
   const sInput = document.getElementById('dashStartDateInput');
-  if (sInput) sInput.value = '';
+  if (sInput) { if (sInput._flatpickr) sInput._flatpickr.clear(); else sInput.value = ''; }
   const eInput = document.getElementById('dashEndDateInput');
-  if (eInput) eInput.value = '';
+  if (eInput) { if (eInput._flatpickr) eInput._flatpickr.clear(); else eInput.value = ''; }
 
   // Uncheck presets
   document.querySelectorAll('.dash-preset-btn').forEach(btn => btn.classList.remove('active'));
@@ -6836,7 +6970,7 @@ function applyDashboardDateRange() {
 
   // Clear single specific date input
   const spInput = document.getElementById('dashSpecificDateInput');
-  if (spInput) spInput.value = '';
+  if (spInput) { if (spInput._flatpickr) spInput._flatpickr.clear(); else spInput.value = ''; }
 
   // Uncheck presets
   document.querySelectorAll('.dash-preset-btn').forEach(btn => btn.classList.remove('active'));

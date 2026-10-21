@@ -186,6 +186,10 @@ if (!function_exists('calculateStayPricing')) {
             'breakdown_text'  => $breakdownText,
             'rate_type_badge' => $rateTypeBadge,
             'is_weekend'      => $hasWeekend,
+            'has_weekend'     => $hasWeekend,
+            'has_weekday'     => $hasWeekday,
+            'is_all_weekend'  => $isAllWeekend,
+            'is_all_weekday'  => $isAllWeekday,
             'night_details'   => $nightDetails
         ];
     }
