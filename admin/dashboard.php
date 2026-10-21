@@ -5019,7 +5019,17 @@ function renderCottageCards(cottages) {
   cottages.forEach(c => {
     const isAvail = c.is_available;
     const isChecked = isAvail && previouslySelected.includes(String(c.id));
-    const wkNotice = c.is_weekend ? '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 ms-1" style="font-size:0.65rem;">Weekend</span>' : '';
+    const nights = c.total_nights || 1;
+    let rateBadge = '';
+    if (c.rate_type_badge === 'Weekend Rate') {
+      rateBadge = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 ms-1" style="font-size:0.65rem;">Weekend</span>';
+    } else if (c.rate_type_badge === 'Mixed Rate') {
+      rateBadge = '<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-1" style="font-size:0.65rem;">Mixed</span>';
+    }
+
+    const priceLabel = nights > 1 
+      ? `৳ ${Number(c.stay_total_price || c.effective_price).toLocaleString()} <small class="text-muted fw-normal" style="font-size:0.7rem;">(${nights}n total)</small>`
+      : `৳ ${Number(c.stay_total_price || c.effective_price).toLocaleString()} <small class="text-muted fw-normal" style="font-size:0.7rem;">/n</small>`;
     
     let statusBadgeHtml = '';
     if (isAvail) {
@@ -5036,7 +5046,7 @@ function renderCottageCards(cottages) {
       <div class="cottage-select-card h-100 ${isChecked ? 'selected' : ''} ${!isAvail ? 'disabled' : ''}" onclick="toggleCottageCard(${c.id}, event)">
         <div class="d-flex align-items-start gap-2">
           <input class="form-check-input cottage-cb mt-1" type="checkbox" name="cottage_ids[]" value="${c.id}" id="c_cb_${c.id}" 
-            data-id="${c.id}" data-price="${c.effective_price}" data-title="${c.title}" 
+            data-id="${c.id}" data-stay-price="${c.stay_total_price || c.effective_price}" data-avg-price="${c.avg_price || c.price}" data-title="${c.title}" data-breakdown="${c.breakdown_text || ''}" 
             ${isChecked ? 'checked' : ''} ${!isAvail ? 'disabled' : ''} onchange="onCottageCheckboxChange(event)">
           <div class="flex-grow-1 min-w-0">
             <div class="d-flex justify-content-between align-items-center">
@@ -5044,9 +5054,10 @@ function renderCottageCards(cottages) {
               ${statusBadgeHtml}
             </div>
             <div class="d-flex justify-content-between align-items-center mt-1">
-              <span class="text-success fw-bold" style="font-size:0.82rem;">৳ ${Number(c.effective_price).toLocaleString()} <small class="text-muted fw-normal" style="font-size:0.7rem;">/n</small></span>
-              ${wkNotice}
+              <span class="text-success fw-bold" style="font-size:0.82rem;">${priceLabel}</span>
+              ${rateBadge}
             </div>
+            ${c.breakdown_text && nights > 1 ? `<div class="text-muted text-truncate" style="font-size:0.65rem;" title="${c.breakdown_text}"><i class="fa-solid fa-info-circle me-1 text-primary"></i>${c.breakdown_text}</div>` : ''}
             ${!isAvail && c.booked_by ? `<div class="text-danger text-truncate mt-1" style="font-size:0.68rem;" title="${c.booked_by}"><i class="fa-solid fa-user-xmark me-1"></i>${c.booked_by}</div>` : ''}
           </div>
         </div>
@@ -5104,11 +5115,15 @@ function calculateBookingTotal() {
     }
   }
 
-  // Calculate combined nightly rate of selected cottages
-  let combinedRate = 0;
+  // Calculate combined stay total and avg per-night rate of selected cottages
+  let combinedAvgRate = 0;
+  let combinedStayTotal = 0;
   const selectedTitles = [];
   checkedBoxes.forEach(cb => {
-    combinedRate += parseFloat(cb.dataset.price || 0);
+    const stayCost = parseFloat(cb.dataset.stayPrice || 0);
+    const avgRate = parseFloat(cb.dataset.avgPrice || (nights > 0 ? stayCost / nights : stayCost));
+    combinedStayTotal += stayCost;
+    combinedAvgRate += avgRate;
     selectedTitles.push(cb.dataset.title || '');
   });
 
@@ -5122,14 +5137,14 @@ function calculateBookingTotal() {
     countBadge.className = checkedBoxes.length > 0 ? 'badge bg-success ms-1' : 'badge bg-secondary ms-1';
   }
   if (namesEl) namesEl.textContent = selectedTitles.length > 0 ? selectedTitles.join(', ') : 'None chosen';
-  if (rateEl) rateEl.textContent = `৳ ${combinedRate.toLocaleString()} / night`;
+  if (rateEl) rateEl.textContent = `৳ ${combinedAvgRate.toLocaleString()} / night (avg)`;
 
   if (noCottageError) {
     if (checkedBoxes.length > 0) noCottageError.classList.add('d-none');
   }
 
   // Auto-calculate Total Bill if user is changing cottages/dates or bill is empty
-  const calculatedTotal = combinedRate * nights;
+  const calculatedTotal = combinedStayTotal;
   if (totalAmountInput) {
     const activeEl = document.activeElement;
     const isManualTotalEdit = (activeEl === totalAmountInput);
@@ -5140,7 +5155,7 @@ function calculateBookingTotal() {
 
   if (notice) {
     if (checkedBoxes.length > 0) {
-      notice.innerHTML = `<span class="text-success"><i class="fa-solid fa-calculator me-1"></i> ${nights} Night(s) &times; ৳${combinedRate.toLocaleString()}/night (${checkedBoxes.length} Cottage${checkedBoxes.length > 1 ? 's' : ''})</span>`;
+      notice.innerHTML = `<span class="text-success"><i class="fa-solid fa-calculator me-1"></i> ${nights} Night(s) &bull; ${checkedBoxes.length} Cottage${checkedBoxes.length > 1 ? 's' : ''} = ৳${combinedStayTotal.toLocaleString()}</span>`;
     } else {
       notice.textContent = '';
     }

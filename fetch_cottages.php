@@ -2,7 +2,7 @@
 // fetch_cottages.php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
 // DB connection (admin/includes/db.php relative to this file)
 $dbPath = __DIR__ . '/admin/includes/db.php';
@@ -10,7 +10,7 @@ if (!file_exists($dbPath)) {
     echo json_encode(["error" => "DB connection file not found."]);
     exit;
 }
-include($dbPath); // provides $conn (mysqli)
+include($dbPath); // provides $conn (mysqli) & pricing_helper.php
 
 // Input check
 if (!isset($_POST['check_in']) || !isset($_POST['check_out'])) {
@@ -18,8 +18,8 @@ if (!isset($_POST['check_in']) || !isset($_POST['check_out'])) {
     exit;
 }
 
-$check_in = $_POST['check_in'];
-$check_out = $_POST['check_out'];
+$check_in = trim($_POST['check_in']);
+$check_out = trim($_POST['check_out']);
 
 // Validate date format (basic)
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $check_in) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $check_out)) {
@@ -33,11 +33,7 @@ if (strtotime($check_in) >= strtotime($check_out)) {
     exit;
 }
 
-// Debug log optional
-//$log = __DIR__ . '/fetch_debug.txt';
-//file_put_contents($log, "REQ: $check_in | $check_out\n", FILE_APPEND);
-
-// 1) Get list of cottages (we will show all cottages in serial order)
+// 1) Get list of cottages in serial sequence
 $q = "SELECT id, title, price, weekend_price, is_weekend, img, status FROM cottages ORDER BY FIELD(title, 'অরুনিকা', 'তিলোত্তমা', 'ছায়াবীথি', 'নয়নতারা', 'জলসা', 'রুপকথা', 'কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৩', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'), id ASC";
 $res = $conn->query($q);
 if (!$res) {
@@ -47,28 +43,36 @@ if (!$res) {
 
 $cottages = [];
 while ($r = $res->fetch_assoc()) {
-    // prepare image path relative to public (fallback)
     $img = !empty($r['img']) ? "assets/img/" . $r['img'] : "assets/img/default.jpg";
-    $isWeekendActive = ((int)($r['is_weekend'] ?? 0) === 1);
-    $effectivePrice = ($isWeekendActive && !empty($r['weekend_price'])) ? (int)$r['weekend_price'] : (int)$r['price'];
+    $stayPricing = calculateStayPricing($check_in, $check_out, $r['price'], $r['weekend_price']);
     $defaultAvailability = ($r['status'] === 'inactive') ? 'unavailable' : 'available';
 
     $cottages[$r['id']] = [
-        "id" => (int)$r['id'],
-        "title" => $r['title'],
-        "price" => (int)$r['price'],
-        "weekend_price" => (int)$r['weekend_price'],
-        "is_weekend" => $isWeekendActive,
-        "effective_price" => $effectivePrice,
-        "display_price" => $effectivePrice,
-        "img" => $img,
-        "status" => $r['status'] ?? 'active',
-        "availability" => $defaultAvailability
+        "id"              => (int)$r['id'],
+        "title"           => $r['title'],
+        "price"           => (int)$r['price'],
+        "weekend_price"   => (int)($r['weekend_price'] > 0 ? $r['weekend_price'] : $r['price']),
+        "is_weekend"      => $stayPricing['has_weekend'],
+        "is_all_weekend"  => $stayPricing['is_all_weekend'],
+        "has_weekend"     => $stayPricing['has_weekend'],
+        "has_weekday"     => $stayPricing['has_weekday'],
+        "total_nights"    => $stayPricing['total_nights'],
+        "weekday_nights"  => $stayPricing['weekday_nights'],
+        "weekend_nights"  => $stayPricing['weekend_nights'],
+        "total_price"     => (int)$stayPricing['total_price'],
+        "avg_price"       => (int)$stayPricing['avg_price'],
+        "effective_price" => (int)$stayPricing['total_price'],
+        "display_price"   => (int)$stayPricing['total_price'],
+        "breakdown_text"  => $stayPricing['breakdown_text'],
+        "rate_type_badge" => $stayPricing['rate_type_badge'],
+        "night_details"   => $stayPricing['night_details'],
+        "img"             => $img,
+        "status"          => $r['status'] ?? 'active',
+        "availability"    => $defaultAvailability
     ];
 }
 
 // 2) Find booked cottage ids that overlap requested period and status = accepted
-// Overlap condition: existing.check_in < requested_check_out AND existing.check_out > requested_check_in
 $sql = "SELECT DISTINCT cottage_id FROM bookings 
         WHERE status = 'accepted' AND check_in < ? AND check_out > ?
         UNION
@@ -90,7 +94,7 @@ while ($row = $res2->fetch_assoc()) {
 }
 $stmt->close();
 
-// 3) Mark availability for each cottage (do not hide any cottage)
+// 3) Mark availability for each cottage
 foreach ($bookedIds as $bid) {
     if (isset($cottages[$bid])) {
         $cottages[$bid]['availability'] = 'booked';

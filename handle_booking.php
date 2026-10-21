@@ -70,13 +70,17 @@ try {
     $nights = 1;
 }
 
-// Determine rate and total amount
-$isWeekend = ((int)($cottage['is_weekend'] ?? 0) === 1 && !empty($cottage['weekend_price']));
-$ratePerNight = $isWeekend ? floatval($cottage['weekend_price']) : floatval($cottage['price'] ?? 0);
-$total_amount = $nights * $ratePerNight;
+// Determine stay pricing dynamically (accounting for night-by-night weekday & weekend rates)
+$weekdayPrice = floatval($cottage['price'] ?? 0);
+$weekendPrice = floatval($cottage['weekend_price'] ?? $weekdayPrice);
+$stayPricing  = calculateStayPricing($check_in, $check_out, $weekdayPrice, $weekendPrice);
+
+$nights         = $stayPricing['total_nights'];
+$ratePerNight   = $stayPricing['avg_price'];
+$total_amount   = $stayPricing['total_price'];
 $advance_amount = 0.00;
-$due_amount = $total_amount;
-$status = 'pending';
+$due_amount     = $total_amount;
+$status         = 'pending';
 
 // Insert booking
 $stmt = $conn->prepare("INSERT INTO bookings (cottage_id, customer_name, customer_email, customer_phone, check_in, check_out, total_amount, advance_amount, due_amount, notes, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
@@ -88,14 +92,17 @@ if ($stmt->execute()) {
     $booking_code = 'ECO' . str_pad($booking_id, 4, '0', STR_PAD_LEFT);
 
     echo json_encode([
-        'success'       => true,
-        'booking_id'    => $booking_id,
-        'booking_code'  => $booking_code,
-        'cottage_name'  => $cottage['title'],
-        'nights'        => $nights,
-        'rate_per_night'=> $ratePerNight,
-        'total_amount'  => $total_amount,
-        'message'       => 'আপনার বুকিং রিকোয়েস্ট সফলভাবে গ্রহণ করা হয়েছে!'
+        'success'        => true,
+        'booking_id'     => $booking_id,
+        'booking_code'   => $booking_code,
+        'cottage_name'   => $cottage['title'],
+        'nights'         => $nights,
+        'weekday_nights' => $stayPricing['weekday_nights'],
+        'weekend_nights' => $stayPricing['weekend_nights'],
+        'rate_per_night' => $ratePerNight,
+        'total_amount'   => $total_amount,
+        'breakdown_text' => $stayPricing['breakdown_text'],
+        'message'        => 'আপনার বুকিং রিকোয়েস্ট সফলভাবে গ্রহণ করা হয়েছে!'
     ]);
     exit;
 } else {

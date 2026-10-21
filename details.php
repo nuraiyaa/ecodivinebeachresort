@@ -77,8 +77,9 @@ $folder = $folderMap[$cottageName] ?? 'tilottoma';
 // Pricing variables
 $weekdayPrice = floatval($cottage['price'] ?? 4500);
 $weekendPrice = floatval($cottage['weekend_price'] ?? $weekdayPrice);
-$isWeekend    = ((int)($cottage['is_weekend'] ?? 0) === 1);
-$currentPrice = $isWeekend ? $weekendPrice : $weekdayPrice;
+$stayPricing  = calculateStayPricing($checkin, $checkout, $weekdayPrice, $weekendPrice);
+$currentPrice = $stayPricing['total_price'];
+$isWeekend    = $stayPricing['is_weekend'];
 $isAvailable  = (($cottage['status'] ?? 'active') === 'active');
 
 // Guest Capacity and Features
@@ -610,11 +611,15 @@ if ($otherCottagesRes) {
             <span class="cottage-meta-pill">
               <i class="fa-solid fa-user-group text-info"></i> <?= $capacityText ?>
             </span>
-            <?php if ($isWeekend): ?>
-              <span class="cottage-meta-pill weekend-pill-active">
+            <span class="cottage-meta-pill <?= $stayPricing['rate_type_badge'] === 'Weekend Rate' ? 'weekend-pill-active' : ($stayPricing['rate_type_badge'] === 'Mixed Rate' ? 'bg-primary bg-opacity-10 text-primary border-primary border-opacity-25' : 'text-muted border-secondary border-opacity-25') ?>" id="topWeekendBadge">
+              <?php if ($stayPricing['rate_type_badge'] === 'Weekend Rate'): ?>
                 <i class="fa-solid fa-fire text-warning"></i> Weekend Rate Active
-              </span>
-            <?php endif; ?>
+              <?php elseif ($stayPricing['rate_type_badge'] === 'Mixed Rate'): ?>
+                <i class="fa-solid fa-calculator text-primary"></i> Mixed Rate Active
+              <?php else: ?>
+                <i class="fa-regular fa-calendar"></i> Weekday Rate
+              <?php endif; ?>
+            </span>
           </div>
 
           <h1 class="cottage-main-title mb-1"><?= htmlspecialchars($cottageName) ?></h1>
@@ -880,12 +885,21 @@ if ($otherCottagesRes) {
           <div class="booking-card-header">
             <span class="text-white-50 text-uppercase small fw-bold tracking-wide d-block mb-1">RESERVATION RATE</span>
             <div class="d-flex align-items-baseline gap-2">
-              <span class="rate-big">৳ <?= number_format($currentPrice) ?></span>
-              <span class="text-white-50">/ night</span>
+              <span class="rate-big" id="headerStayPrice">৳ <?= number_format($stayPricing['total_price']) ?></span>
+              <span class="text-white-50" id="headerRateUnit"><?= $stayPricing['total_nights'] > 1 ? '/ total (' . $stayPricing['total_nights'] . ' nights)' : '/ night' ?></span>
             </div>
             <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top border-white border-opacity-10 small">
               <span class="text-white-50">Weekday: ৳<?= number_format($weekdayPrice) ?></span> &bull; 
               <span class="text-white-50">Weekend: ৳<?= number_format($weekendPrice) ?></span>
+            </div>
+            <div class="mt-2" id="headerStayBreakdown">
+              <?php if ($stayPricing['rate_type_badge'] === 'Weekend Rate'): ?>
+                <span class="badge bg-warning text-dark"><i class="fa-solid fa-fire me-1"></i> Weekend Rate Active</span>
+              <?php elseif ($stayPricing['rate_type_badge'] === 'Mixed Rate'): ?>
+                <span class="badge bg-primary text-white"><i class="fa-solid fa-calculator me-1"></i> <?= htmlspecialchars($stayPricing['breakdown_text']) ?></span>
+              <?php else: ?>
+                <span class="badge bg-white bg-opacity-25 text-white border border-white border-opacity-25"><i class="fa-regular fa-calendar me-1"></i> Weekday Rate</span>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -943,16 +957,16 @@ if ($otherCottagesRes) {
                 <!-- Real-time Bill Calculation Breakdown -->
                 <div class="calc-breakdown-box" id="calcBreakdownBox">
                   <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="text-muted small" id="calcNightsLabel">1 Night &times; ৳<?= number_format($currentPrice) ?></span>
-                    <strong class="text-dark" id="calcSubtotalAmount">৳ <?= number_format($currentPrice) ?></strong>
+                    <span class="text-muted small" id="calcNightsLabel"><?= htmlspecialchars($stayPricing['breakdown_text'] ?: ($stayPricing['total_nights'] . ' Night × ৳' . number_format($stayPricing['avg_price']))) ?></span>
+                    <strong class="text-dark" id="calcSubtotalAmount">৳ <?= number_format($stayPricing['total_price']) ?></strong>
                   </div>
                   <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="text-muted small">Advance Deposit:</span>
-                    <strong class="text-success" id="calcAdvancePayable">৳ 2,040</strong>
+                    <strong class="text-success" id="calcAdvancePayable">৳ <?= number_format($stayPricing['total_nights'] * 2040) ?></strong>
                   </div>
                   <div class="d-flex justify-content-between align-items-center pt-2 border-top">
                     <span class="fw-bold text-dark">Estimated Total:</span>
-                    <span class="fw-bold fs-6 text-success" id="calcTotalBill">৳ <?= number_format($currentPrice) ?></span>
+                    <span class="fw-bold fs-6 text-success" id="calcTotalBill">৳ <?= number_format($stayPricing['total_price']) ?></span>
                   </div>
                 </div>
 
@@ -1046,11 +1060,17 @@ if ($otherCottagesRes) {
   <div class="container d-flex align-items-center justify-content-between">
     <div>
       <div class="d-flex align-items-baseline gap-1">
-        <span class="mobile-price-val">৳ <?= number_format($currentPrice) ?></span>
-        <span class="text-muted small">/ night</span>
+        <span class="mobile-price-val" id="mobilePriceVal">৳ <?= number_format($stayPricing['total_price']) ?></span>
+        <span class="text-muted small" id="mobilePriceUnit"><?= $stayPricing['total_nights'] > 1 ? '(' . $stayPricing['total_nights'] . 'n)' : '/ night' ?></span>
       </div>
-      <small class="text-muted d-block" style="font-size: 0.72rem;">
-        <?= $isWeekend ? '<span class="text-warning fw-bold"><i class="fa-solid fa-fire me-1"></i>Weekend Rate</span>' : 'Regular Weekday' ?>
+      <small class="text-muted d-block" style="font-size: 0.72rem;" id="mobileRateType">
+        <?php if ($stayPricing['rate_type_badge'] === 'Weekend Rate'): ?>
+          <span class="text-warning fw-bold"><i class="fa-solid fa-fire me-1"></i>Weekend Rate</span>
+        <?php elseif ($stayPricing['rate_type_badge'] === 'Mixed Rate'): ?>
+          <span class="text-primary fw-bold"><i class="fa-solid fa-calculator me-1"></i>Mixed Rate</span>
+        <?php else: ?>
+          <span>Regular Weekday</span>
+        <?php endif; ?>
       </small>
     </div>
     <div>
@@ -1157,7 +1177,8 @@ if ($otherCottagesRes) {
      CLIENT-SIDE JAVASCRIPT: FLATPICKR, PRICING, & AJAX
      ======================================================== -->
 <script>
-const BASE_NIGHTLY_PRICE = <?= $currentPrice ?>;
+const WEEKDAY_PRICE = <?= $weekdayPrice ?>;
+const WEEKEND_PRICE = <?= $weekendPrice ?>;
 const COTTAGE_FOLDER = "<?= $folder ?>";
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -1299,33 +1320,130 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 });
 
+// Calculate dynamic stay pricing night-by-night
+function calculateStayPricingJS(inDateStr, outDateStr, weekdayPrice, weekendPrice) {
+  let nights = 1;
+  let weekdayNights = 0;
+  let weekendNights = 0;
+  let totalPrice = 0;
+
+  if (inDateStr && outDateStr) {
+    const inParts = inDateStr.split('-').map(Number);
+    const outParts = outDateStr.split('-').map(Number);
+    if (inParts.length === 3 && outParts.length === 3) {
+      const d1 = new Date(inParts[0], inParts[1] - 1, inParts[2]);
+      const d2 = new Date(outParts[0], outParts[1] - 1, outParts[2]);
+
+      if (d2 > d1) {
+        nights = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+        const cur = new Date(d1.getTime());
+        while (cur < d2) {
+          const day = cur.getDay(); // 0: Sun, 1: Mon, ..., 5: Fri, 6: Sat
+          if (day === 5 || day === 6) {
+            weekendNights++;
+            totalPrice += weekendPrice;
+          } else {
+            weekdayNights++;
+            totalPrice += weekdayPrice;
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+    }
+  }
+
+  if (weekdayNights === 0 && weekendNights === 0) {
+    weekdayNights = 1;
+    totalPrice = weekdayPrice;
+  }
+
+  let rateTypeBadge = 'Weekday Rate';
+  let breakdownText = '';
+  if (weekendNights > 0 && weekdayNights > 0) {
+    rateTypeBadge = 'Mixed Rate';
+    breakdownText = `${weekdayNights} Wkday (৳${weekdayPrice.toLocaleString()}) + ${weekendNights} Wkend (৳${weekendPrice.toLocaleString()})`;
+  } else if (weekendNights > 0) {
+    rateTypeBadge = 'Weekend Rate';
+    breakdownText = nights > 1 ? `${weekendNights} Weekend Nights (৳${weekendPrice.toLocaleString()}/n)` : `Weekend Night (৳${weekendPrice.toLocaleString()})`;
+  } else {
+    rateTypeBadge = 'Weekday Rate';
+    breakdownText = nights > 1 ? `${weekdayNights} Weekday Nights (৳${weekdayPrice.toLocaleString()}/n)` : `Weekday Night (৳${weekdayPrice.toLocaleString()})`;
+  }
+
+  return {
+    totalNights: nights,
+    weekdayNights,
+    weekendNights,
+    totalPrice,
+    breakdownText,
+    rateTypeBadge
+  };
+}
+
 // Update live price calculation
 function updateCalculatedBill() {
   const inVal = document.getElementById("bookingCheckIn")?.value;
   const outVal = document.getElementById("bookingCheckOut")?.value;
 
-  let nights = 1;
-  if (inVal && outVal) {
-    const d1 = new Date(inVal);
-    const d2 = new Date(outVal);
-    if (d2 > d1) {
-      const diffTime = Math.abs(d2 - d1);
-      nights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    }
-  }
-
-  const subtotal = nights * BASE_NIGHTLY_PRICE;
-  const advance = nights * 2040;
+  const pricing = calculateStayPricingJS(inVal, outVal, WEEKDAY_PRICE, WEEKEND_PRICE);
+  const advance = pricing.totalNights * 2040;
 
   const nightsLabel = document.getElementById("calcNightsLabel");
   const subtotalEl = document.getElementById("calcSubtotalAmount");
   const advanceEl = document.getElementById("calcAdvancePayable");
   const totalEl = document.getElementById("calcTotalBill");
 
-  if (nightsLabel) nightsLabel.innerText = `${nights} Night${nights > 1 ? 's' : ''} × ৳${BASE_NIGHTLY_PRICE.toLocaleString()}`;
-  if (subtotalEl) subtotalEl.innerText = `৳ ${subtotal.toLocaleString()}`;
+  if (nightsLabel) nightsLabel.innerText = pricing.breakdownText;
+  if (subtotalEl) subtotalEl.innerText = `৳ ${pricing.totalPrice.toLocaleString()}`;
   if (advanceEl) advanceEl.innerText = `৳ ${advance.toLocaleString()}`;
-  if (totalEl) totalEl.innerText = `৳ ${subtotal.toLocaleString()}`;
+  if (totalEl) totalEl.innerText = `৳ ${pricing.totalPrice.toLocaleString()}`;
+
+  // Update Sticky Card Header
+  const headerStayPrice = document.getElementById("headerStayPrice");
+  const headerRateUnit = document.getElementById("headerRateUnit");
+  const headerStayBreakdown = document.getElementById("headerStayBreakdown");
+  if (headerStayPrice) headerStayPrice.innerText = `৳ ${pricing.totalPrice.toLocaleString()}`;
+  if (headerRateUnit) headerRateUnit.innerText = pricing.totalNights > 1 ? `/ total (${pricing.totalNights} nights)` : '/ night';
+  if (headerStayBreakdown) {
+    if (pricing.rateTypeBadge === 'Weekend Rate') {
+      headerStayBreakdown.innerHTML = `<span class="badge bg-warning text-dark"><i class="fa-solid fa-fire me-1"></i> Weekend Rate Active</span>`;
+    } else if (pricing.rateTypeBadge === 'Mixed Rate') {
+      headerStayBreakdown.innerHTML = `<span class="badge bg-primary text-white"><i class="fa-solid fa-calculator me-1"></i> ${pricing.breakdownText}</span>`;
+    } else {
+      headerStayBreakdown.innerHTML = `<span class="badge bg-white bg-opacity-25 text-white border border-white border-opacity-25"><i class="fa-regular fa-calendar me-1"></i> Weekday Rate</span>`;
+    }
+  }
+
+  // Update Top Pill Badge
+  const topWeekendBadge = document.getElementById("topWeekendBadge");
+  if (topWeekendBadge) {
+    if (pricing.rateTypeBadge === 'Weekend Rate') {
+      topWeekendBadge.className = "cottage-meta-pill weekend-pill-active";
+      topWeekendBadge.innerHTML = '<i class="fa-solid fa-fire text-warning"></i> Weekend Rate Active';
+    } else if (pricing.rateTypeBadge === 'Mixed Rate') {
+      topWeekendBadge.className = "cottage-meta-pill bg-primary bg-opacity-10 text-primary border-primary border-opacity-25";
+      topWeekendBadge.innerHTML = '<i class="fa-solid fa-calculator text-primary"></i> Mixed Rate Active';
+    } else {
+      topWeekendBadge.className = "cottage-meta-pill text-muted border-secondary border-opacity-25";
+      topWeekendBadge.innerHTML = '<i class="fa-regular fa-calendar"></i> Weekday Rate';
+    }
+  }
+
+  // Update Mobile Floating Bottom Bar
+  const mobilePriceVal = document.getElementById("mobilePriceVal");
+  const mobilePriceUnit = document.getElementById("mobilePriceUnit");
+  const mobileRateType = document.getElementById("mobileRateType");
+  if (mobilePriceVal) mobilePriceVal.innerText = `৳ ${pricing.totalPrice.toLocaleString()}`;
+  if (mobilePriceUnit) mobilePriceUnit.innerText = pricing.totalNights > 1 ? `(${pricing.totalNights}n)` : '/ night';
+  if (mobileRateType) {
+    if (pricing.rateTypeBadge === 'Weekend Rate') {
+      mobileRateType.innerHTML = '<span class="text-warning fw-bold"><i class="fa-solid fa-fire me-1"></i>Weekend Rate</span>';
+    } else if (pricing.rateTypeBadge === 'Mixed Rate') {
+      mobileRateType.innerHTML = '<span class="text-primary fw-bold"><i class="fa-solid fa-calculator me-1"></i>Mixed Rate</span>';
+    } else {
+      mobileRateType.innerHTML = '<span>Regular Weekday</span>';
+    }
+  }
 }
 
 // Mobile Thumbnail Switcher

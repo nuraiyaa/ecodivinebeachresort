@@ -18,4 +18,7 @@ if (file_exists(__DIR__ . '/db.local.php')) {
 
     $conn->set_charset("utf8mb4");
 }
+
+// Load centralized stay pricing helper
+require_once __DIR__ . '/pricing_helper.php';
 ?>

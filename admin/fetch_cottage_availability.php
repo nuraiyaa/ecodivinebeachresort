@@ -31,19 +31,28 @@ if ($check_out <= $check_in) {
 $cottagesRes = $conn->query("SELECT id, title, price, weekend_price, is_weekend, status FROM cottages ORDER BY FIELD(title, 'অরুনিকা', 'তিলোত্তমা', 'ছায়াবীথি', 'নয়নতারা', 'জলসা', 'রুপকথা', 'কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৩', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'), id ASC");
 $allCottages = [];
 while ($row = $cottagesRes->fetch_assoc()) {
-    $isWk = ((int)($row['is_weekend'] ?? 0) === 1);
-    $eff = ($isWk && !empty($row['weekend_price'])) ? floatval($row['weekend_price']) : floatval($row['price']);
+    $weekdayPrice = floatval($row['price']);
+    $weekendPrice = floatval($row['weekend_price'] ?? $weekdayPrice);
+    $stayPricing  = calculateStayPricing($check_in, $check_out, $weekdayPrice, $weekendPrice);
+
     $allCottages[$row['id']] = [
-        'id' => (int)$row['id'],
-        'title' => $row['title'],
-        'price' => floatval($row['price']),
-        'weekend_price' => floatval($row['weekend_price']),
-        'is_weekend' => $isWk,
-        'effective_price' => $eff,
-        'status' => $row['status'],
-        'is_available' => ($row['status'] === 'active'),
-        'booked_by' => null,
-        'booking_status' => null
+        'id'               => (int)$row['id'],
+        'title'            => $row['title'],
+        'price'            => $weekdayPrice,
+        'weekend_price'    => $weekendPrice,
+        'is_weekend'       => $stayPricing['is_weekend'],
+        'total_nights'     => $stayPricing['total_nights'],
+        'weekday_nights'   => $stayPricing['weekday_nights'],
+        'weekend_nights'   => $stayPricing['weekend_nights'],
+        'stay_total_price' => $stayPricing['total_price'],
+        'avg_price'        => $stayPricing['avg_price'],
+        'breakdown_text'   => $stayPricing['breakdown_text'],
+        'rate_type_badge'  => $stayPricing['rate_type_badge'],
+        'effective_price'  => $stayPricing['total_price'],
+        'status'           => $row['status'],
+        'is_available'     => ($row['status'] === 'active'),
+        'booked_by'        => null,
+        'booking_status'   => null
     ];
 }
 

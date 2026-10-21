@@ -308,7 +308,7 @@
           if (isset($dbCottageMap[$cottage['id']])) {
             $cottage['weekday'] = (int)$dbCottageMap[$cottage['id']]['price'];
             $cottage['weekend'] = (int)$dbCottageMap[$cottage['id']]['weekend_price'];
-            $cottage['is_weekend'] = ((int)$dbCottageMap[$cottage['id']]['is_weekend'] === 1);
+            $cottage['is_weekend'] = (function_exists('isDateWeekend') ? isDateWeekend(date('Y-m-d')) : in_array((int)date('N'), [5, 6])) || ((int)$dbCottageMap[$cottage['id']]['is_weekend'] === 1);
             $cottage['status'] = $dbCottageMap[$cottage['id']]['status'];
           }
 
