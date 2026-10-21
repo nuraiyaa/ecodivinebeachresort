@@ -365,30 +365,16 @@ document.addEventListener('DOMContentLoaded', function() {
           badgeHtml = `<span class="badge bg-success position-absolute top-0 end-0 m-3 px-3 py-2 rounded-pill shadow-sm"><i class="fa-solid fa-circle-check me-1"></i> Available</span>`;
         }
 
-        let rateBadgeHtml = '';
-        if (cottage.rate_type_badge === 'Weekend Rate') {
-          rateBadgeHtml = `<span class="badge bg-warning text-dark px-2 py-1 mb-1 shadow-sm"><i class="fa-solid fa-fire me-1"></i> Weekend Rate Active</span>`;
-        } else if (cottage.rate_type_badge === 'Mixed Rate') {
-          rateBadgeHtml = `<span class="badge bg-primary text-white px-2 py-1 mb-1 shadow-sm"><i class="fa-solid fa-calculator me-1"></i> Weekday + Weekend Rate</span>`;
-        } else {
-          rateBadgeHtml = `<span class="badge bg-light text-muted border px-2 py-1 mb-1"><i class="fa-regular fa-calendar me-1"></i> Weekday Rate</span>`;
-        }
+        const isWeekend = cottage.is_weekend;
+        const currentRate = isWeekend ? (cottage.weekend_price || cottage.price) : cottage.price;
+        const rateBadgeHtml = isWeekend 
+          ? `<span class="badge bg-warning text-dark px-2 py-1 mb-1 shadow-sm"><i class="fa-solid fa-fire me-1"></i> Weekend Rate</span>`
+          : `<span class="badge bg-light text-muted border px-2 py-1 mb-1"><i class="fa-regular fa-calendar me-1"></i> Weekday Rate</span>`;
 
-        const totalNights = cottage.total_nights || 1;
-        let priceDisplay = '';
-        let detailSubtext = '';
-
-        if (totalNights > 1) {
-          const formattedTotal = Number(cottage.total_price || (cottage.price * totalNights)).toLocaleString();
-          priceDisplay = `৳${formattedTotal} <small class="text-muted fs-6 fw-normal">total (${totalNights} nights)</small>`;
-          detailSubtext = cottage.breakdown_text 
-            ? `<div class="text-muted mt-1" style="font-size:0.75rem;"><i class="fa-solid fa-circle-info me-1 text-primary"></i>${cottage.breakdown_text}</div>`
-            : `<small class="text-muted" style="font-size:0.75rem;">Weekday: ৳${cottage.price} | Weekend: ৳${cottage.weekend_price}</small>`;
-        } else {
-          const singleNightPrice = Number(cottage.total_price || (cottage.is_weekend ? cottage.weekend_price : cottage.price)).toLocaleString();
-          priceDisplay = `৳${singleNightPrice} <small class="text-muted fs-6 fw-normal">/ night</small>`;
-          detailSubtext = `<small class="text-muted" style="font-size:0.75rem;">Weekday: ৳${cottage.price} | Weekend: ৳${cottage.weekend_price}</small>`;
-        }
+        const priceDisplay = `৳${Number(currentRate).toLocaleString()} <small class="text-muted fs-6 fw-normal">/ night</small>`;
+        const detailSubtext = isWeekend
+          ? `<small class="text-muted" style="font-size:0.75rem;">Weekday: ৳${Number(cottage.price).toLocaleString()} | Weekend: <b>৳${Number(cottage.weekend_price).toLocaleString()}</b></small>`
+          : `<small class="text-muted" style="font-size:0.75rem;">Weekday: <b>৳${Number(cottage.price).toLocaleString()}</b> | Weekend: ৳${Number(cottage.weekend_price).toLocaleString()}</small>`;
 
         const priceHtml = `
           <div class="mb-2">

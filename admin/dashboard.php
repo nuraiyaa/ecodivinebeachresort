@@ -3565,6 +3565,7 @@ require __DIR__ . '/includes/header.php';
   cursor: pointer;
   transition: all 0.15s ease-in-out;
   user-select: none;
+  overflow: hidden;
 }
 .cottage-select-card:hover:not(.disabled) {
   border-color: #10b981;
@@ -3580,6 +3581,9 @@ require __DIR__ . '/includes/header.php';
   border-color: #e2e8f0 !important;
   opacity: 0.65;
   cursor: not-allowed !important;
+}
+.cottage-selection-list {
+  overflow-x: hidden !important;
 }
 </style>
 
@@ -3654,31 +3658,32 @@ require __DIR__ . '/includes/header.php';
               </div>
 
               <!-- Cottage Selection List / Grid -->
-              <div class="cottage-selection-list flex-grow-1" id="cottageCardsGrid" style="max-height: 250px; overflow-y: auto; padding-right: 4px;">
+              <div class="cottage-selection-list flex-grow-1" id="cottageCardsGrid" style="max-height: 250px; overflow-y: auto; overflow-x: hidden; padding-right: 4px;">
                 <div class="row g-2">
                   <?php foreach($allCottages as $c): 
                     $cInitPricing = calculateStayPricing(date('Y-m-d'), date('Y-m-d', strtotime('+1 day')), $c['price'], $c['weekend_price']);
                     $isInactive = ($c['status'] === 'inactive');
+                    $effNightly = $cInitPricing['is_weekend'] ? ($c['weekend_price'] > 0 ? $c['weekend_price'] : $c['price']) : $c['price'];
                   ?>
                     <div class="col-sm-6 col-12">
                       <div class="cottage-select-card h-100 <?= $isInactive ? 'disabled' : '' ?>" onclick="toggleCottageCard(<?= $c['id'] ?>, event)">
                         <div class="d-flex align-items-start gap-2">
-                          <input class="form-check-input cottage-cb mt-1" type="checkbox" name="cottage_ids[]" value="<?= $c['id'] ?>" id="c_cb_<?= $c['id'] ?>" 
-                            data-id="<?= $c['id'] ?>" data-stay-price="<?= $cInitPricing['total_price'] ?>" data-avg-price="<?= $cInitPricing['avg_price'] ?>" data-title="<?= htmlspecialchars($c['title']) ?>" data-breakdown="<?= htmlspecialchars($cInitPricing['breakdown_text']) ?>"
+                          <input class="form-check-input cottage-cb mt-1 flex-shrink-0" type="checkbox" name="cottage_ids[]" value="<?= $c['id'] ?>" id="c_cb_<?= $c['id'] ?>" 
+                            data-id="<?= $c['id'] ?>" data-stay-price="<?= $cInitPricing['total_price'] ?>" data-avg-price="<?= $effNightly ?>" data-title="<?= htmlspecialchars($c['title']) ?>" data-breakdown="<?= htmlspecialchars($cInitPricing['breakdown_text']) ?>"
                             <?= $isInactive ? 'disabled' : '' ?> onchange="onCottageCheckboxChange(event)">
                           <div class="flex-grow-1 min-w-0">
-                            <div class="d-flex justify-content-between align-items-center">
-                              <span class="fw-bold text-dark text-truncate" style="font-size:0.88rem;"><?= htmlspecialchars($c['title']) ?></span>
+                            <div class="d-flex justify-content-between align-items-center gap-1">
+                              <span class="fw-bold text-dark text-truncate" style="font-size:0.85rem;"><?= htmlspecialchars($c['title']) ?></span>
                               <?php if($isInactive): ?>
-                                <span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:0.68rem;"><i class="fa-solid fa-wrench me-1"></i>Maint.</span>
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border flex-shrink-0" style="font-size:0.65rem; white-space:nowrap;"><i class="fa-solid fa-wrench me-1"></i>Maint.</span>
                               <?php else: ?>
-                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size:0.68rem;"><i class="fa-solid fa-check me-1"></i>Available</span>
+                                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 flex-shrink-0" style="font-size:0.65rem; white-space:nowrap;"><i class="fa-solid fa-check me-1"></i>Available</span>
                               <?php endif; ?>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center mt-1">
-                              <span class="text-success fw-bold" style="font-size:0.82rem;">৳ <?= number_format($cInitPricing['total_price']) ?> <small class="text-muted fw-normal" style="font-size:0.7rem;">/n</small></span>
+                            <div class="d-flex justify-content-between align-items-center mt-1 gap-1">
+                              <span class="text-success fw-bold text-nowrap" style="font-size:0.82rem;">৳ <?= number_format($effNightly) ?> <small class="text-muted fw-normal" style="font-size:0.7rem;">/n</small></span>
                               <?php if($cInitPricing['is_weekend']): ?>
-                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size:0.65rem;">Weekend</span>
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 flex-shrink-0" style="font-size:0.62rem; white-space:nowrap;">Weekend</span>
                               <?php endif; ?>
                             </div>
                           </div>
@@ -5181,25 +5186,23 @@ function renderCottageCards(cottages) {
   cottages.forEach(c => {
     const isAvail = c.is_available;
     const isChecked = isAvail && previouslySelected.includes(String(c.id));
-    const nights = c.total_nights || 1;
+    
+    // Nightly rate only: if weekend active for stay, show weekend rate, else weekday rate
+    const effRate = c.is_weekend ? (c.weekend_price || c.price) : c.price;
+    const priceLabel = `৳ ${Number(effRate).toLocaleString()} <small class="text-muted fw-normal" style="font-size:0.7rem;">/n</small>`;
+
     let rateBadge = '';
-    if (c.rate_type_badge === 'Weekend Rate') {
-      rateBadge = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 ms-1" style="font-size:0.65rem;">Weekend</span>';
-    } else if (c.rate_type_badge === 'Mixed Rate') {
-      rateBadge = '<span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-1" style="font-size:0.65rem;">Mixed</span>';
+    if (c.is_weekend) {
+      rateBadge = '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 flex-shrink-0" style="font-size:0.62rem; white-space:nowrap;">Weekend</span>';
     }
 
-    const priceLabel = nights > 1 
-      ? `৳ ${Number(c.stay_total_price || c.effective_price).toLocaleString()} <small class="text-muted fw-normal" style="font-size:0.7rem;">(${nights}n total)</small>`
-      : `৳ ${Number(c.stay_total_price || c.effective_price).toLocaleString()} <small class="text-muted fw-normal" style="font-size:0.7rem;">/n</small>`;
-    
     let statusBadgeHtml = '';
     if (isAvail) {
-      statusBadgeHtml = '<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size:0.68rem;"><i class="fa-solid fa-check me-1"></i>Available</span>';
+      statusBadgeHtml = '<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 flex-shrink-0" style="font-size:0.65rem; white-space:nowrap;"><i class="fa-solid fa-check me-1"></i>Available</span>';
     } else if (c.status === 'inactive') {
-      statusBadgeHtml = '<span class="badge bg-secondary bg-opacity-10 text-secondary border" style="font-size:0.68rem;"><i class="fa-solid fa-wrench me-1"></i>Maint.</span>';
+      statusBadgeHtml = '<span class="badge bg-secondary bg-opacity-10 text-secondary border flex-shrink-0" style="font-size:0.65rem; white-space:nowrap;"><i class="fa-solid fa-wrench me-1"></i>Maint.</span>';
     } else {
-      statusBadgeHtml = `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size:0.68rem;" title="${c.booked_by || 'Booked'}"><i class="fa-solid fa-lock me-1"></i>Booked</span>`;
+      statusBadgeHtml = `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 flex-shrink-0" style="font-size:0.65rem; white-space:nowrap;" title="${c.booked_by || 'Booked'}"><i class="fa-solid fa-lock me-1"></i>Booked</span>`;
     }
 
     const col = document.createElement('div');
@@ -5207,20 +5210,19 @@ function renderCottageCards(cottages) {
     col.innerHTML = `
       <div class="cottage-select-card h-100 ${isChecked ? 'selected' : ''} ${!isAvail ? 'disabled' : ''}" onclick="toggleCottageCard(${c.id}, event)">
         <div class="d-flex align-items-start gap-2">
-          <input class="form-check-input cottage-cb mt-1" type="checkbox" name="cottage_ids[]" value="${c.id}" id="c_cb_${c.id}" 
-            data-id="${c.id}" data-stay-price="${c.stay_total_price || c.effective_price}" data-avg-price="${c.avg_price || c.price}" data-title="${c.title}" data-breakdown="${c.breakdown_text || ''}" 
+          <input class="form-check-input cottage-cb mt-1 flex-shrink-0" type="checkbox" name="cottage_ids[]" value="${c.id}" id="c_cb_${c.id}" 
+            data-id="${c.id}" data-stay-price="${c.stay_total_price || c.effective_price}" data-avg-price="${effRate}" data-title="${c.title}" data-breakdown="${c.breakdown_text || ''}" 
             ${isChecked ? 'checked' : ''} ${!isAvail ? 'disabled' : ''} onchange="onCottageCheckboxChange(event)">
           <div class="flex-grow-1 min-w-0">
-            <div class="d-flex justify-content-between align-items-center">
-              <span class="fw-bold text-dark text-truncate" style="font-size:0.88rem;">${c.title}</span>
+            <div class="d-flex justify-content-between align-items-center gap-1">
+              <span class="fw-bold text-dark text-truncate" style="font-size:0.85rem;">${c.title}</span>
               ${statusBadgeHtml}
             </div>
-            <div class="d-flex justify-content-between align-items-center mt-1">
-              <span class="text-success fw-bold" style="font-size:0.82rem;">${priceLabel}</span>
+            <div class="d-flex justify-content-between align-items-center mt-1 gap-1">
+              <span class="text-success fw-bold text-nowrap" style="font-size:0.82rem;">${priceLabel}</span>
               ${rateBadge}
             </div>
-            ${c.breakdown_text && nights > 1 ? `<div class="text-muted text-truncate" style="font-size:0.65rem;" title="${c.breakdown_text}"><i class="fa-solid fa-info-circle me-1 text-primary"></i>${c.breakdown_text}</div>` : ''}
-            ${!isAvail && c.booked_by ? `<div class="text-danger text-truncate mt-1" style="font-size:0.68rem;" title="${c.booked_by}"><i class="fa-solid fa-user-xmark me-1"></i>${c.booked_by}</div>` : ''}
+            ${!isAvail && c.booked_by ? `<div class="text-danger text-truncate mt-1" style="font-size:0.65rem;" title="${c.booked_by}"><i class="fa-solid fa-user-xmark me-1"></i>${c.booked_by}</div>` : ''}
           </div>
         </div>
       </div>
