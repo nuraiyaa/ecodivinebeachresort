@@ -89,6 +89,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_update_cottage
     }
 }
 
+// 5. Add Specific Weekend Date(s)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_add_weekend_date'])) {
+    $startDate = trim($_POST['weekend_date'] ?? '');
+    $endDate   = trim($_POST['weekend_date_end'] ?? '');
+    $note      = trim($_POST['note'] ?? '');
+
+    if (!empty($startDate)) {
+        if (empty($endDate) || $endDate < $startDate) {
+            $endDate = $startDate;
+        }
+
+        $conn->query("CREATE TABLE IF NOT EXISTS weekend_dates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            weekend_date DATE NOT NULL UNIQUE,
+            note VARCHAR(255) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $stmt = $conn->prepare("INSERT INTO weekend_dates (weekend_date, note) VALUES (?, ?) ON DUPLICATE KEY UPDATE note = VALUES(note)");
+        $curr = new DateTime($startDate);
+        $last = new DateTime($endDate);
+
+        while ($curr <= $last) {
+            $dStr = $curr->format('Y-m-d');
+            $stmt->bind_param("ss", $dStr, $note);
+            $stmt->execute();
+            $curr->modify('+1 day');
+        }
+        $stmt->close();
+
+        header("Location: " . getRedirectUrl($redirectTarget, 'weekend_date_added'));
+        exit;
+    } else {
+        header("Location: " . getRedirectUrl($redirectTarget, 'cottage_error'));
+        exit;
+    }
+}
+
+// 6. Delete Specific Weekend Date
+if (isset($_GET['delete_weekend_date'])) {
+    $wid = intval($_GET['delete_weekend_date']);
+    if ($wid > 0) {
+        $conn->query("DELETE FROM weekend_dates WHERE id = $wid");
+    }
+    header("Location: " . getRedirectUrl($redirectTarget, 'weekend_date_deleted'));
+    exit;
+}
+
 header("Location: " . $redirectTarget);
 exit;
 ?>

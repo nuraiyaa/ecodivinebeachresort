@@ -1179,6 +1179,7 @@ if ($otherCottagesRes) {
 <script>
 const WEEKDAY_PRICE = <?= $weekdayPrice ?>;
 const WEEKEND_PRICE = <?= $weekendPrice ?>;
+const SPECIFIC_WEEKEND_DATES = <?= json_encode(function_exists('getSpecificWeekendDates') ? getSpecificWeekendDates() : []) ?>;
 const COTTAGE_FOLDER = "<?= $folder ?>";
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -1339,7 +1340,14 @@ function calculateStayPricingJS(inDateStr, outDateStr, weekdayPrice, weekendPric
         const cur = new Date(d1.getTime());
         while (cur < d2) {
           const day = cur.getDay(); // 0: Sun, 1: Mon, ..., 5: Fri, 6: Sat
-          if (day === 5 || day === 6) {
+          const yyyy = cur.getFullYear();
+          const mm = String(cur.getMonth() + 1).padStart(2, '0');
+          const dd = String(cur.getDate()).padStart(2, '0');
+          const formattedCurDate = `${yyyy}-${mm}-${dd}`;
+          const isSpecificWk = Array.isArray(SPECIFIC_WEEKEND_DATES) && SPECIFIC_WEEKEND_DATES.includes(formattedCurDate);
+
+          const isWk = (day === 5 || day === 6 || isSpecificWk);
+          if (isWk) {
             weekendNights++;
             totalPrice += weekendPrice;
           } else {

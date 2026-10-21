@@ -2,10 +2,78 @@
 // admin/includes/pricing_helper.php
 // Dynamic Night-by-Night Pricing Calculator for Eco Divine Beach Resort
 
+if (!function_exists('getSpecificWeekendDates')) {
+    /**
+     * Fetch list of custom specific weekend dates from database.
+     * Caches statically for the current request.
+     *
+     * @return array Array of 'YYYY-MM-DD' strings
+     */
+    function getSpecificWeekendDates() {
+        global $conn;
+        static $cachedDates = null;
+        if ($cachedDates !== null) {
+            return $cachedDates;
+        }
+
+        $cachedDates = [];
+        if (!$conn || !($conn instanceof mysqli)) {
+            return $cachedDates;
+        }
+
+        // Auto-create table if it doesn't exist
+        $conn->query("CREATE TABLE IF NOT EXISTS weekend_dates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            weekend_date DATE NOT NULL UNIQUE,
+            note VARCHAR(255) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $res = $conn->query("SELECT weekend_date FROM weekend_dates ORDER BY weekend_date ASC");
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $cachedDates[] = $row['weekend_date'];
+            }
+        }
+        return $cachedDates;
+    }
+}
+
+if (!function_exists('getAllWeekendRecords')) {
+    /**
+     * Fetch detailed list of all custom weekend dates with ID, note and date.
+     *
+     * @return array
+     */
+    function getAllWeekendRecords() {
+        global $conn;
+        if (!$conn || !($conn instanceof mysqli)) {
+            return [];
+        }
+
+        $conn->query("CREATE TABLE IF NOT EXISTS weekend_dates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            weekend_date DATE NOT NULL UNIQUE,
+            note VARCHAR(255) NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $records = [];
+        $res = $conn->query("SELECT id, weekend_date, note, created_at FROM weekend_dates ORDER BY weekend_date ASC");
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $records[] = $row;
+            }
+        }
+        return $records;
+    }
+}
+
 if (!function_exists('isDateWeekend')) {
     /**
      * Check if a specific date (night of stay) is a weekend night.
-     * In Bangladesh resorts, Friday and Saturday nights are the weekend rates.
+     * 1. Friday and Saturday nights are the standard weekend nights.
+     * 2. Any specific date set in the admin panel (e.g. holidays, festivals).
      *
      * @param string $dateStr 'YYYY-MM-DD'
      * @return bool
@@ -13,16 +81,29 @@ if (!function_exists('isDateWeekend')) {
     function isDateWeekend($dateStr) {
         $timestamp = strtotime($dateStr);
         if (!$timestamp) return false;
-        $dayOfWeek = (int)date('N', $timestamp); // 1 (Mon) to 7 (Sun)
-        return ($dayOfWeek === 5 || $dayOfWeek === 6); // 5 = Friday, 6 = Saturday
+        
+        // Friday (5) & Saturday (6)
+        $dayOfWeek = (int)date('N', $timestamp);
+        if ($dayOfWeek === 5 || $dayOfWeek === 6) {
+            return true;
+        }
+
+        // Custom specific weekend dates set in admin
+        $specificDates = getSpecificWeekendDates();
+        $formattedDate = date('Y-m-d', $timestamp);
+        if (!empty($specificDates) && in_array($formattedDate, $specificDates, true)) {
+            return true;
+        }
+
+        return false;
     }
 }
 
 if (!function_exists('calculateStayPricing')) {
     /**
      * Calculate night-by-night breakdown and total price for a stay.
-     * Automatically applies weekend rate for Friday & Saturday nights,
-     * and regular weekday rate for Sunday through Thursday nights.
+     * Automatically applies weekend rate for Friday & Saturday nights or custom weekend dates,
+     * and regular weekday rate for other nights.
      *
      * @param string $checkIn      'YYYY-MM-DD'
      * @param string $checkOut     'YYYY-MM-DD'
@@ -51,8 +132,8 @@ if (!function_exists('calculateStayPricing')) {
         $nightDetails = [];
 
         while ($curr < $cout) {
-            $dayOfWeek = (int)$curr->format('N'); // 1 (Mon) - 7 (Sun)
-            $isWk = ($dayOfWeek === 5 || $dayOfWeek === 6); // 5 = Fri, 6 = Sat
+            $dateStr = $curr->format('Y-m-d');
+            $isWk = isDateWeekend($dateStr);
             $rate = $isWk ? $weekendPrice : $weekdayPrice;
 
             if ($isWk) {
@@ -62,7 +143,7 @@ if (!function_exists('calculateStayPricing')) {
             }
 
             $nightDetails[] = [
-                'date'       => $curr->format('Y-m-d'),
+                'date'       => $dateStr,
                 'day_name'   => $curr->format('l'),
                 'day_short'  => $curr->format('D'),
                 'is_weekend' => $isWk,
@@ -100,16 +181,11 @@ if (!function_exists('calculateStayPricing')) {
             'total_nights'    => $totalNights,
             'weekday_nights'  => $weekdayNights,
             'weekend_nights'  => $weekendNights,
-            'weekday_price'   => $weekdayPrice,
-            'weekend_price'   => $weekendPrice,
             'total_price'     => $totalPrice,
             'avg_price'       => $avgPrice,
-            'has_weekend'     => $hasWeekend,
-            'has_weekday'     => $hasWeekday,
-            'is_all_weekend'  => $isAllWeekend,
-            'is_all_weekday'  => $isAllWeekday,
             'breakdown_text'  => $breakdownText,
             'rate_type_badge' => $rateTypeBadge,
+            'is_weekend'      => $hasWeekend,
             'night_details'   => $nightDetails
         ];
     }

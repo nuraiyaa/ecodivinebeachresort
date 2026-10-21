@@ -84,6 +84,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_create_booking
             $accepted_at = ($booking_status === 'accepted') ? date('Y-m-d H:i:s') : null;
             $accepted_by = ($booking_status === 'accepted') ? $admin_id : null;
 
+            // Auto-calculate exact stay pricing if total amount was left blank or zero
+            if ($total_amount <= 0 && !empty($cottage_ids)) {
+                $calc_total = 0;
+                $c_pricing_res = $conn->query("SELECT price, weekend_price FROM cottages WHERE id IN ($c_in_list)");
+                if ($c_pricing_res) {
+                    while ($cp_row = $c_pricing_res->fetch_assoc()) {
+                        $p = calculateStayPricing($check_in, $check_out, floatval($cp_row['price']), floatval($cp_row['weekend_price'] ?? $cp_row['price']));
+                        $calc_total += $p['total_price'];
+                    }
+                }
+                $total_amount = $calc_total;
+                $due_amount = max(0, $total_amount - $advance_amount - $discount_amount);
+            }
+
             $stmt = $conn->prepare("INSERT INTO bookings (cottage_id, customer_name, customer_email, customer_phone, check_in, check_out, total_amount, advance_amount, discount_amount, due_amount, payment_method, notes, status, accepted_by, accepted_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
             $stmt->bind_param("isssssddddsssis", $primary_cottage_id, $cust_name, $cust_email, $cust_phone, $check_in, $check_out, $total_amount, $advance_amount, $discount_amount, $due_amount, $payment_method, $notes, $booking_status, $accepted_by, $accepted_at);
             
@@ -91,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_create_booking
                 $new_booking_id = $stmt->insert_id;
                 $stmt->close();
 
-                // Save all cottages into booking_cottages table
+                // Save all cottages into booking_cottages table with dynamic stay rate
                 $c_info_res = $conn->query("SELECT id, title, price, weekend_price, is_weekend FROM cottages WHERE id IN ($c_in_list)");
                 $cottage_titles = [];
                 $stmt_bc = $conn->prepare("INSERT INTO booking_cottages (booking_id, cottage_id, price) VALUES (?, ?, ?)");
@@ -99,8 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action_create_booking
                 while ($crow = $c_info_res->fetch_assoc()) {
                     $cottage_titles[] = $crow['title'];
                     $cid = (int)$crow['id'];
-                    $isWk = ((int)($crow['is_weekend'] ?? 0) === 1);
-                    $rate = ($isWk && !empty($crow['weekend_price'])) ? floatval($crow['weekend_price']) : floatval($crow['price']);
+                    $crowPricing = calculateStayPricing($check_in, $check_out, floatval($crow['price']), floatval($crow['weekend_price'] ?? $crow['price']));
+                    $rate = floatval($crowPricing['avg_price']);
                     $stmt_bc->bind_param("iid", $new_booking_id, $cid, $rate);
                     $stmt_bc->execute();
                 }
@@ -991,6 +1005,16 @@ require __DIR__ . '/includes/header.php';
       <i class="fa-solid fa-triangle-exclamation me-2"></i> Error saving cottage updates. Please verify all inputs.
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
+  <?php elseif ($booking_msg === 'weekend_date_added'): ?>
+    <div class="alert alert-success alert-dismissible fade show mb-4 shadow-sm" role="alert">
+      <i class="fa-solid fa-circle-check text-success me-2"></i> <strong>Specific Weekend Date(s) Added!</strong> The selected date(s) will now automatically trigger weekend rates across both the website and admin portal.
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  <?php elseif ($booking_msg === 'weekend_date_deleted'): ?>
+    <div class="alert alert-secondary alert-dismissible fade show mb-4 shadow-sm" role="alert">
+      <i class="fa-solid fa-trash-can text-danger me-2"></i> <strong>Weekend Date Removed!</strong> The specific date was removed and will follow regular weekday pricing.
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
   <?php endif; ?>
 
   <!-- ========================================================
@@ -1270,6 +1294,123 @@ require __DIR__ . '/includes/header.php';
        VIEW 2: MANAGE COTTAGES (#view-cottages)
        ======================================================== -->
   <div class="dashboard-view-pane" id="view-cottages">
+    <?php 
+      $customWeekendDates = function_exists('getAllWeekendRecords') ? getAllWeekendRecords() : [];
+    ?>
+
+    <!-- ================= SPECIFIC / HOLIDAY WEEKEND DATES CARD ================= -->
+    <div class="admin-card mb-4 border-warning border-opacity-25 shadow-sm" style="border-radius: 16px;">
+      <div class="admin-card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center flex-wrap gap-2 py-3 px-4">
+        <div>
+          <h5 class="fw-bold text-dark mb-0">
+            <i class="fa-solid fa-calendar-star text-warning me-2"></i> Custom Weekend & Holiday Dates
+          </h5>
+          <small class="text-muted">Set specific dates (e.g. Eid, New Year, National Holidays) to automatically trigger weekend rates on both the website and admin booking.</small>
+        </div>
+        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold shadow-sm">
+          <i class="fa-solid fa-fire me-1"></i> <?= count($customWeekendDates) ?> Custom Date<?= count($customWeekendDates) !== 1 ? 's' : '' ?> Active
+        </span>
+      </div>
+
+      <div class="p-3 p-md-4">
+        <!-- Add Date Form -->
+        <form action="update_cottage.php" method="POST" class="row g-3 align-items-end mb-3 bg-light p-3 rounded-3 border">
+          <input type="hidden" name="action_add_weekend_date" value="1">
+          <input type="hidden" name="ref" value="dashboard">
+
+          <div class="col-12 col-sm-6 col-md-3">
+            <label class="form-label text-muted fw-bold small mb-1" style="font-size:0.75rem;">DATE / START DATE <span class="text-danger">*</span></label>
+            <input type="date" name="weekend_date" class="form-control form-control-sm fw-semibold" required min="<?= date('Y-m-d') ?>">
+          </div>
+
+          <div class="col-12 col-sm-6 col-md-3">
+            <label class="form-label text-muted fw-bold small mb-1" style="font-size:0.75rem;">END DATE <small class="text-muted fw-normal">(Optional range)</small></label>
+            <input type="date" name="weekend_date_end" class="form-control form-control-sm fw-semibold" placeholder="Optional end date">
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label text-muted fw-bold small mb-1" style="font-size:0.75rem;">HOLIDAY / OCCASION NOTE <small class="text-muted fw-normal">(Optional)</small></label>
+            <input type="text" name="note" class="form-control form-control-sm" placeholder="e.g. Eid Vacation, New Year, Special Holiday">
+          </div>
+
+          <div class="col-12 col-md-2">
+            <button type="submit" class="btn btn-warning btn-sm w-100 fw-bold text-dark rounded-pill py-2 shadow-sm">
+              <i class="fa-solid fa-plus-circle me-1"></i> Set Weekend
+            </button>
+          </div>
+        </form>
+
+        <!-- Current Custom Weekend Dates List -->
+        <div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-bold text-dark small text-uppercase" style="letter-spacing:0.04em;">
+              <i class="fa-solid fa-list-check text-success me-1"></i> Active Specific Weekend Dates
+            </span>
+            <small class="text-muted">Friday & Saturday nights are active by default</small>
+          </div>
+
+          <?php if (empty($customWeekendDates)): ?>
+            <div class="text-center py-4 px-3 bg-light rounded-3 text-muted border border-dashed">
+              <i class="fa-solid fa-calendar-check fs-3 text-secondary mb-2 d-block"></i>
+              <strong class="text-dark">No custom weekend dates added yet.</strong>
+              <p class="small mb-0 mt-1">Friday and Saturday nights are automatically applied as weekend rates across all systems. Add dates above to mark special holidays as weekend rates.</p>
+            </div>
+          <?php else: ?>
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle mb-0 border rounded-3 overflow-hidden">
+                <thead class="table-light text-muted small text-uppercase">
+                  <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Date</th>
+                    <th>Day of Week</th>
+                    <th>Occasion / Label</th>
+                    <th>Rate Status</th>
+                    <th class="text-end" style="width: 120px;">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($customWeekendDates as $idx => $cwd): 
+                    $cwdTs = strtotime($cwd['weekend_date']);
+                    $cwdDay = date('l', $cwdTs);
+                    $isNaturalWk = in_array((int)date('N', $cwdTs), [5, 6]);
+                  ?>
+                    <tr>
+                      <td class="text-muted small fw-semibold"><?= $idx + 1 ?></td>
+                      <td class="fw-bold text-dark">
+                        <i class="fa-regular fa-calendar-days text-warning me-1"></i>
+                        <?= date('d M, Y', $cwdTs) ?>
+                      </td>
+                      <td>
+                        <span class="badge <?= $isNaturalWk ? 'bg-warning-subtle text-warning border border-warning' : 'bg-light text-dark border' ?>">
+                          <?= $cwdDay ?><?= $isNaturalWk ? ' (Standard Weekend)' : '' ?>
+                        </span>
+                      </td>
+                      <td>
+                        <?php if (!empty($cwd['note'])): ?>
+                          <span class="fw-semibold text-dark"><i class="fa-solid fa-tag text-primary me-1" style="font-size:0.75rem;"></i><?= htmlspecialchars($cwd['note']) ?></span>
+                        <?php else: ?>
+                          <span class="text-muted small fst-italic">Custom Weekend Date</span>
+                        <?php endif; ?>
+                      </td>
+                      <td>
+                        <span class="badge bg-warning text-dark shadow-sm">
+                          <i class="fa-solid fa-fire me-1"></i> Weekend Rate Active
+                        </span>
+                      </td>
+                      <td class="text-end">
+                        <a href="update_cottage.php?delete_weekend_date=<?= $cwd['id'] ?>&ref=dashboard" class="btn btn-outline-danger btn-sm rounded-pill px-3 py-1" onclick="return confirm('Remove <?= date('d M, Y', $cwdTs) ?> from custom weekend dates?');" title="Remove this weekend date">
+                          <i class="fa-solid fa-trash me-1"></i> Remove
+                        </a>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
     <div class="admin-card mb-4">
       <div class="admin-card-header">
         <div>
@@ -3504,15 +3645,14 @@ require __DIR__ . '/includes/header.php';
               <div class="cottage-selection-list flex-grow-1" id="cottageCardsGrid" style="max-height: 250px; overflow-y: auto; padding-right: 4px;">
                 <div class="row g-2">
                   <?php foreach($allCottages as $c): 
-                    $isWk = ((int)($c['is_weekend'] ?? 0) === 1);
-                    $effPrice = ($isWk && !empty($c['weekend_price'])) ? floatval($c['weekend_price']) : floatval($c['price']);
+                    $cInitPricing = calculateStayPricing(date('Y-m-d'), date('Y-m-d', strtotime('+1 day')), $c['price'], $c['weekend_price']);
                     $isInactive = ($c['status'] === 'inactive');
                   ?>
                     <div class="col-sm-6 col-12">
                       <div class="cottage-select-card h-100 <?= $isInactive ? 'disabled' : '' ?>" onclick="toggleCottageCard(<?= $c['id'] ?>, event)">
                         <div class="d-flex align-items-start gap-2">
                           <input class="form-check-input cottage-cb mt-1" type="checkbox" name="cottage_ids[]" value="<?= $c['id'] ?>" id="c_cb_<?= $c['id'] ?>" 
-                            data-id="<?= $c['id'] ?>" data-price="<?= $effPrice ?>" data-title="<?= htmlspecialchars($c['title']) ?>" 
+                            data-id="<?= $c['id'] ?>" data-stay-price="<?= $cInitPricing['total_price'] ?>" data-avg-price="<?= $cInitPricing['avg_price'] ?>" data-title="<?= htmlspecialchars($c['title']) ?>" data-breakdown="<?= htmlspecialchars($cInitPricing['breakdown_text']) ?>"
                             <?= $isInactive ? 'disabled' : '' ?> onchange="onCottageCheckboxChange(event)">
                           <div class="flex-grow-1 min-w-0">
                             <div class="d-flex justify-content-between align-items-center">
@@ -3524,8 +3664,8 @@ require __DIR__ . '/includes/header.php';
                               <?php endif; ?>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mt-1">
-                              <span class="text-success fw-bold" style="font-size:0.82rem;">৳ <?= number_format($effPrice) ?> <small class="text-muted fw-normal" style="font-size:0.7rem;">/n</small></span>
-                              <?php if($isWk): ?>
+                              <span class="text-success fw-bold" style="font-size:0.82rem;">৳ <?= number_format($cInitPricing['total_price']) ?> <small class="text-muted fw-normal" style="font-size:0.7rem;">/n</small></span>
+                              <?php if($cInitPricing['is_weekend']): ?>
                                 <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size:0.65rem;">Weekend</span>
                               <?php endif; ?>
                             </div>
@@ -4952,6 +5092,7 @@ function searchCottageCards() {
 // ========================================================
 // REAL-TIME COTTAGE AVAILABILITY & MULTI-COTTAGE BOOKING
 // ========================================================
+const SPECIFIC_WEEKEND_DATES = <?= json_encode(function_exists('getSpecificWeekendDates') ? getSpecificWeekendDates() : []) ?>;
 
 function onDatesChanged() {
   const cinInput = document.getElementById('modalCheckIn');
