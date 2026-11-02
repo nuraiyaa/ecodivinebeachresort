@@ -13,13 +13,13 @@ if (!file_exists($dbPath)) {
 include($dbPath); // provides $conn (mysqli) & pricing_helper.php
 
 // Input check
-if (!isset($_POST['check_in']) || !isset($_POST['check_out'])) {
+$check_in  = trim($_REQUEST['check_in'] ?? $_POST['check_in'] ?? $_GET['check_in'] ?? '');
+$check_out = trim($_REQUEST['check_out'] ?? $_POST['check_out'] ?? $_GET['check_out'] ?? '');
+
+if (empty($check_in) || empty($check_out)) {
     echo json_encode(["error" => "Missing date parameters."]);
     exit;
 }
-
-$check_in = trim($_POST['check_in']);
-$check_out = trim($_POST['check_out']);
 
 // Validate date format (basic)
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $check_in) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $check_out)) {

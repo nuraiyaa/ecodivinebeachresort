@@ -80,7 +80,29 @@ $weekendPrice = floatval($cottage['weekend_price'] ?? $weekdayPrice);
 $stayPricing  = calculateStayPricing($checkin, $checkout, $weekdayPrice, $weekendPrice);
 $currentPrice = $stayPricing['total_price'];
 $isWeekend    = $stayPricing['is_weekend'];
-$isAvailable  = (($cottage['status'] ?? 'active') === 'active');
+
+// Check booked cottages for requested stay dates (accepted bookings)
+$bookedCottageIds = [];
+$bStmt = $conn->prepare("
+    SELECT DISTINCT cottage_id FROM bookings 
+    WHERE status = 'accepted' AND check_in < ? AND check_out > ?
+    UNION
+    SELECT DISTINCT bc.cottage_id FROM booking_cottages bc
+    JOIN bookings b ON bc.booking_id = b.id
+    WHERE b.status = 'accepted' AND b.check_in < ? AND b.check_out > ?
+");
+if ($bStmt) {
+    $bStmt->bind_param("ssss", $checkout, $checkin, $checkout, $checkin);
+    $bStmt->execute();
+    $bRes = $bStmt->get_result();
+    while ($bRow = $bRes->fetch_assoc()) {
+        $bookedCottageIds[] = (int)$bRow['cottage_id'];
+    }
+    $bStmt->close();
+}
+
+$isBooked    = in_array($cottageId, $bookedCottageIds, true);
+$isAvailable = (($cottage['status'] ?? 'active') === 'active') && !$isBooked;
 
 // Guest Capacity and Features
 $four_person_cottages = ['জলসা', 'কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'];
@@ -106,8 +128,13 @@ if (in_array($cottageName, $side_sea_cottages)) {
 }
 $bathLabel    = ($cottageName === 'রুপকথা') ? 'Adjacent Private Bath' : 'Attached Modern Bath';
 
-// Fetch other cottages for recommendations
-$otherCottagesRes = $conn->query("SELECT * FROM cottages WHERE id != $cottageId AND status = 'active' ORDER BY RAND() LIMIT 3");
+// Fetch other cottages that are ACTUALLY AVAILABLE for these dates
+$notInSql = '';
+if (!empty($bookedCottageIds)) {
+    $notInSql = " AND id NOT IN (" . implode(',', array_map('intval', $bookedCottageIds)) . ")";
+}
+$otherSql = "SELECT * FROM cottages WHERE id != $cottageId AND status = 'active' {$notInSql} ORDER BY FIELD(title, 'অরুনিকা', 'তিলোত্তমা', 'ছায়াবীথি', 'নয়নতারা', 'জলসা', 'রুপকথা', 'কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৩', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'), id ASC LIMIT 6";
+$otherCottagesRes = $conn->query($otherSql);
 $otherCottages = [];
 if ($otherCottagesRes) {
     while ($r = $otherCottagesRes->fetch_assoc()) {
@@ -602,8 +629,14 @@ if ($otherCottagesRes) {
       <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         <div>
           <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
-            <span class="cottage-meta-pill text-success border-success border-opacity-25 bg-success bg-opacity-10">
-              <i class="fa-solid fa-circle-check"></i> <?= $isAvailable ? 'Available' : 'Maintenance' ?>
+            <span id="topAvailabilityBadge" class="cottage-meta-pill <?= $isBooked ? 'text-danger border-danger border-opacity-25 bg-danger bg-opacity-10' : ($isAvailable ? 'text-success border-success border-opacity-25 bg-success bg-opacity-10' : 'text-secondary border-secondary border-opacity-25 bg-secondary bg-opacity-10') ?>">
+              <?php if ($isBooked): ?>
+                <i class="fa-solid fa-ban text-danger"></i> Booked for Selected Dates
+              <?php elseif ($isAvailable): ?>
+                <i class="fa-solid fa-circle-check text-success"></i> Available
+              <?php else: ?>
+                <i class="fa-solid fa-wrench text-secondary"></i> Maintenance
+              <?php endif; ?>
             </span>
             <span class="cottage-meta-pill">
               <i class="fa-solid fa-water text-primary"></i> <?= $viewLabel ?>
@@ -906,7 +939,16 @@ if ($otherCottagesRes) {
           <!-- Form Body -->
           <div class="booking-card-body">
             
-            <?php if (!$isAvailable): ?>
+            <div id="currentCottageBookedAlert" class="alert alert-danger text-center mb-3 <?= $isBooked ? '' : 'd-none' ?>">
+              <i class="fa-solid fa-calendar-xmark mb-2 fs-3 d-block text-danger"></i>
+              <strong>Already Booked for Selected Dates</strong>
+              <p class="small mb-2 mt-1" id="bookedAlertDesc">This cottage is already reserved from <strong><?= htmlspecialchars($checkin) ?></strong> to <strong><?= htmlspecialchars($checkout) ?></strong>.</p>
+              <a href="#exploreOtherCottagesSection" class="btn btn-sm btn-outline-danger rounded-pill fw-semibold">
+                <i class="fa-solid fa-arrow-down me-1"></i> Explore Available Cottages Below
+              </a>
+            </div>
+
+            <?php if (!$isAvailable && !$isBooked): ?>
               <div class="alert alert-warning text-center mb-0">
                 <i class="fa-solid fa-triangle-exclamation mb-2 fs-3 d-block"></i>
                 <strong>Cottage Currently Unavailable</strong>
@@ -971,8 +1013,8 @@ if ($otherCottagesRes) {
                 </div>
 
                 <!-- Submit Button -->
-                <button type="submit" id="submitBookingBtn" class="btn btn-reserve-cottage w-100">
-                  <i class="fa-regular fa-calendar-check me-2"></i> Confirm Reservation
+                <button type="submit" id="submitBookingBtn" class="btn btn-reserve-cottage w-100" <?= $isBooked ? 'disabled' : '' ?>>
+                  <i class="<?= $isBooked ? 'fa-solid fa-ban' : 'fa-regular fa-calendar-check' ?> me-2"></i> <?= $isBooked ? 'Already Booked for These Dates' : 'Confirm Reservation' ?>
                 </button>
 
                 <!-- Advance Payment Instructions -->
@@ -1012,23 +1054,27 @@ if ($otherCottagesRes) {
     </div>
 
     <!-- =================== EXPLORE OTHER COTTAGES =================== -->
-    <?php if (!empty($otherCottages)): ?>
-      <div class="mt-4 mt-md-5 pt-4 border-top">
-        <div class="d-flex justify-content-between align-items-center mb-3 mb-md-4 flex-wrap gap-2">
-          <div>
-            <h3 class="fw-bold text-dark mb-1" style="font-size:clamp(1.2rem, 3vw, 1.6rem);">Explore Other Cottages</h3>
-            <p class="text-muted small mb-0">Discover more beachfront wooden villas at Eco Divine Beach Resort.</p>
-          </div>
-          <a href="packages.php" class="btn btn-outline-success btn-sm rounded-pill px-3 py-1 fw-semibold">
-            View All Cottages &rarr;
-          </a>
+    <div class="mt-4 mt-md-5 pt-4 border-top" id="exploreOtherCottagesSection">
+      <div class="d-flex justify-content-between align-items-center mb-3 mb-md-4 flex-wrap gap-2">
+        <div>
+          <h3 class="fw-bold text-dark mb-1" style="font-size:clamp(1.2rem, 3vw, 1.6rem);">Explore Other Cottages</h3>
+          <p class="text-muted small mb-0" id="exploreDatesSubtext">
+            Available cottages for <strong><?= htmlspecialchars($checkin) ?></strong> to <strong><?= htmlspecialchars($checkout) ?></strong>
+          </p>
         </div>
+        <a href="packages.php?checkin=<?= urlencode($checkin) ?>&checkout=<?= urlencode($checkout) ?>" id="viewAllCottagesBtn" class="btn btn-outline-success btn-sm rounded-pill px-3 py-1 fw-semibold">
+          View All Cottages &rarr;
+        </a>
+      </div>
 
-        <div class="row g-3 g-md-4">
+      <div class="row g-3 g-md-4" id="exploreOtherCottagesGrid">
+        <?php if (!empty($otherCottages)): ?>
           <?php foreach ($otherCottages as $oc): 
             $ocFolder = $folderMap[$oc['title']] ?? 'tilottoma';
-            $ocIsWk = ((int)($oc['is_weekend'] ?? 0) === 1);
-            $ocRate = $ocIsWk ? ($oc['weekend_price'] ?? $oc['price']) : $oc['price'];
+            $ocStayPricing = calculateStayPricing($checkin, $checkout, $oc['price'], $oc['weekend_price']);
+            $ocIsWk = !empty($ocStayPricing['is_weekend']);
+            $ocRate = $ocIsWk ? ($oc['weekend_price'] > 0 ? $oc['weekend_price'] : $oc['price']) : $oc['price'];
+            $ocView = ($oc['title'] === 'লবস্টার-০৩' || in_array($oc['title'], ['কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'])) ? 'Non-Sea View Cottage' : (in_array($oc['title'], ['রুপকথা', 'জলসা']) ? 'Side Sea View Cottage' : 'Sea View Cottage');
           ?>
             <div class="col-12 col-sm-6 col-md-4">
               <div class="recom-card h-100 d-flex flex-column">
@@ -1036,19 +1082,34 @@ if ($otherCottagesRes) {
                 <div class="p-3 d-flex flex-column flex-grow-1">
                   <div class="d-flex justify-content-between align-items-center mb-2">
                     <h5 class="fw-bold text-dark mb-0"><?= htmlspecialchars($oc['title']) ?></h5>
-                    <span class="text-success fw-bold">৳ <?= number_format($ocRate) ?><small class="text-muted fw-normal">/nt</small></span>
+                    <span class="text-success fw-bold">৳ <?= number_format($ocRate) ?><small class="text-muted fw-normal">/nt</small>
+                      <?php if ($ocIsWk): ?>
+                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 ms-1" style="font-size:0.65rem;">Weekend</span>
+                      <?php endif; ?>
+                    </span>
                   </div>
-                  <small class="text-muted mb-3"><i class="fa-solid fa-umbrella-beach me-1 text-primary"></i> Saint Martin Beachfront Cottage</small>
-                  <a href="details.php?id=<?= $oc['id'] ?>&checkin=<?= urlencode($checkin) ?>&checkout=<?= urlencode($checkout) ?>" class="btn btn-sm btn-outline-success rounded-pill mt-auto w-100 fw-semibold">
+                  <small class="text-muted mb-3"><i class="fa-solid fa-umbrella-beach me-1 text-primary"></i> <?= $ocView ?></small>
+                  <a href="details.php?id=<?= $oc['id'] ?>&name=<?= urlencode($oc['title']) ?>&checkin=<?= urlencode($checkin) ?>&checkout=<?= urlencode($checkout) ?>" class="btn btn-sm btn-outline-success rounded-pill mt-auto w-100 fw-semibold">
                     View Details &amp; Reserve
                   </a>
                 </div>
               </div>
             </div>
           <?php endforeach; ?>
-        </div>
+        <?php else: ?>
+          <div class="col-12">
+            <div class="alert alert-light border text-center py-4 rounded-4 shadow-sm">
+              <i class="fa-solid fa-calendar-xmark text-warning fs-3 mb-2 d-block"></i>
+              <h6 class="fw-bold text-dark mb-1">No Other Cottages Available for Selected Dates</h6>
+              <p class="text-muted small mb-3">All other cottages are reserved from <strong><?= htmlspecialchars($checkin) ?></strong> to <strong><?= htmlspecialchars($checkout) ?></strong>.</p>
+              <a href="packages.php?checkin=<?= urlencode($checkin) ?>&checkout=<?= urlencode($checkout) ?>" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold">
+                <i class="fa-solid fa-calendar-days me-1"></i> Check Other Dates
+              </a>
+            </div>
+          </div>
+        <?php endif; ?>
       </div>
-    <?php endif; ?>
+    </div>
 
   </div>
 </div>
@@ -1452,6 +1513,156 @@ function updateCalculatedBill() {
       mobileRateType.innerHTML = '<span>Regular Weekday</span>';
     }
   }
+
+  // Refresh Explore Other Cottages & primary cottage availability dynamically
+  updateAvailableOtherCottages(inVal, outVal);
+}
+
+let exploreCottagesAbortController = null;
+let lastCheckedDatesKey = "<?= $checkin ?>_<?= $checkout ?>";
+
+function updateAvailableOtherCottages(inVal, outVal) {
+  if (!inVal || !outVal) return;
+  const datesKey = inVal + '_' + outVal;
+  if (datesKey === lastCheckedDatesKey) return;
+  lastCheckedDatesKey = datesKey;
+
+  const container = document.getElementById('exploreOtherCottagesGrid');
+  const viewAllBtn = document.getElementById('viewAllCottagesBtn');
+  const dateSubtext = document.getElementById('exploreDatesSubtext');
+
+  if (viewAllBtn) {
+    viewAllBtn.href = `packages.php?checkin=${encodeURIComponent(inVal)}&checkout=${encodeURIComponent(outVal)}`;
+  }
+  if (dateSubtext) {
+    dateSubtext.innerHTML = `Available cottages for <strong>${inVal}</strong> to <strong>${outVal}</strong>`;
+  }
+
+  if (exploreCottagesAbortController) {
+    exploreCottagesAbortController.abort();
+  }
+  exploreCottagesAbortController = new AbortController();
+
+  fetch(`fetch_cottages.php?check_in=${encodeURIComponent(inVal)}&check_out=${encodeURIComponent(outVal)}`, {
+    signal: exploreCottagesAbortController.signal
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!Array.isArray(data)) return;
+
+    const currentId = <?= $cottageId ?>;
+
+    // Check availability of current cottage
+    const currentCottageData = data.find(c => Number(c.id) === Number(currentId));
+    const isCurrentBooked = currentCottageData && (currentCottageData.availability === 'booked');
+    const currentBookedAlert = document.getElementById('currentCottageBookedAlert');
+    const bookedAlertDesc = document.getElementById('bookedAlertDesc');
+    const submitBtn = document.getElementById('submitBookingBtn');
+    const topBadge = document.getElementById('topAvailabilityBadge');
+
+    if (isCurrentBooked) {
+      if (currentBookedAlert) currentBookedAlert.classList.remove('d-none');
+      if (bookedAlertDesc) bookedAlertDesc.innerHTML = `This cottage is already reserved from <strong>${inVal}</strong> to <strong>${outVal}</strong>.`;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-ban me-2"></i> Already Booked for These Dates';
+      }
+      if (topBadge) {
+        topBadge.className = 'cottage-meta-pill text-danger border-danger border-opacity-25 bg-danger bg-opacity-10';
+        topBadge.innerHTML = '<i class="fa-solid fa-ban"></i> Booked for Selected Dates';
+      }
+    } else {
+      if (currentBookedAlert) currentBookedAlert.classList.add('d-none');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-regular fa-calendar-check me-2"></i> Confirm Reservation';
+      }
+      if (topBadge) {
+        topBadge.className = 'cottage-meta-pill text-success border-success border-opacity-25 bg-success bg-opacity-10';
+        topBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Available';
+      }
+    }
+
+    if (!container) return;
+
+    // Filter available other cottages
+    const availableOthers = data.filter(c => Number(c.id) !== Number(currentId) && c.availability === 'available');
+
+    if (availableOthers.length === 0) {
+      container.innerHTML = `
+        <div class="col-12">
+          <div class="alert alert-light border text-center py-4 rounded-4 shadow-sm">
+            <i class="fa-solid fa-calendar-xmark text-warning fs-3 mb-2 d-block"></i>
+            <h6 class="fw-bold text-dark mb-1">No Other Cottages Available for Selected Dates</h6>
+            <p class="text-muted small mb-3">All other cottages are reserved from <strong>${inVal}</strong> to <strong>${outVal}</strong>.</p>
+            <a href="packages.php?checkin=${encodeURIComponent(inVal)}&checkout=${encodeURIComponent(outVal)}" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold">
+              <i class="fa-solid fa-calendar-days me-1"></i> Check Other Dates
+            </a>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const folderMap = {
+      'অরুনিকা': 'orunika',
+      'তিলোত্তমা': 'tilottoma',
+      'ছায়াবীথি': 'chayabithi',
+      'নয়নতারা': 'noyontara',
+      'জলসা': 'jolsha',
+      'রুপকথা': 'rupkotha',
+      'কোরাল-০১': 'coral_01',
+      'কোরাল-০২': 'coral_02',
+      'লবস্টার-০৩': 'lobstar_03',
+      'লবস্টার-০৪': 'lobstar_04',
+      'রূপচাঁদা-০৫': 'rupchanda_05',
+      'রূপচাঁদা-০৬': 'rupchanda_06'
+    };
+
+    const nonSeaList = ['কোরাল-০১', 'কোরাল-০২', 'লবস্টার-০৩', 'লবস্টার-০৪', 'রূপচাঁদা-০৫', 'রূপচাঁদা-০৬'];
+    const sideSeaList = ['রুপকথা', 'জলসা'];
+
+    const toShow = availableOthers.slice(0, 6);
+    let html = '';
+    toShow.forEach(c => {
+      const folder = folderMap[c.title] || 'tilottoma';
+      const isWk = c.is_weekend;
+      const rate = isWk ? (c.weekend_price || c.price) : c.price;
+      const rateBadge = isWk ? '<span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 ms-1" style="font-size:0.65rem;">Weekend</span>' : '';
+      
+      let viewType = 'Sea View Cottage';
+      if (c.title === 'লবস্টার-০৩' || nonSeaList.includes(c.title)) {
+        viewType = 'Non-Sea View Cottage';
+      } else if (sideSeaList.includes(c.title)) {
+        viewType = 'Side Sea View Cottage';
+      }
+
+      html += `
+        <div class="col-12 col-sm-6 col-md-4">
+          <div class="recom-card h-100 d-flex flex-column">
+            <img src="assets/img/cottages/${folder}/1.jpg" alt="${c.title}" class="recom-img">
+            <div class="p-3 d-flex flex-column flex-grow-1">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="fw-bold text-dark mb-0">${c.title}</h5>
+                <span class="text-success fw-bold">৳ ${Number(rate).toLocaleString()}<small class="text-muted fw-normal">/nt</small> ${rateBadge}</span>
+              </div>
+              <small class="text-muted mb-3"><i class="fa-solid fa-umbrella-beach me-1 text-primary"></i> ${viewType}</small>
+              <a href="details.php?id=${c.id}&name=${encodeURIComponent(c.title)}&checkin=${encodeURIComponent(inVal)}&checkout=${encodeURIComponent(outVal)}" class="btn btn-sm btn-outline-success rounded-pill mt-auto w-100 fw-semibold">
+                View Details &amp; Reserve
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  })
+  .catch(err => {
+    if (err.name !== 'AbortError') {
+      console.warn('Could not refresh other cottages availability:', err);
+    }
+  });
 }
 
 // Mobile Thumbnail Switcher
