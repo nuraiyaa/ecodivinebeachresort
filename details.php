@@ -733,7 +733,7 @@ if ($otherCottagesRes) {
               <div class="quick-spec-icon"><i class="fa-solid fa-compass"></i></div>
               <div class="overflow-hidden">
                 <small class="text-muted d-block text-uppercase fw-semibold" style="font-size:0.7rem;">VIEW</small>
-                <strong class="text-dark d-block text-truncate" style="font-size:0.88rem;"><?= $isFourPerson ? 'Garden View' : 'Sea View' ?></strong>
+                <strong class="text-dark d-block text-truncate" style="font-size:0.88rem;"><?= ($cottageName === 'লবস্টার-০৩' || $cottageId === 9) ? 'Non Sea View' : ($isFourPerson ? 'Garden View' : 'Sea View') ?></strong>
               </div>
             </div>
           </div>
